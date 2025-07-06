@@ -95,7 +95,7 @@ efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
 				return Status;
 			}
 		} else {
-			Print(L"Could not open file: %a\n", filepath);
+			Print(L"Could not open file: %s\n", filepath);
 		}
 
 		retry++;
