@@ -1,0 +1,7 @@
+builds
+ia32
+x86_64
+arm
+aarch64
+*.o
+*.so
