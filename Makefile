@@ -34,6 +34,11 @@ x86_64_build: mkdisk mkver
 	objcopy -j .text -j .sdata -j .data -j .rodata -j .dynamic -j .dynsym  -j .rel -j .rela -j .rel.* -j .rela.* -j .reloc --target efi-app-x86_64 --subsystem=10 x86_64/boot.so x86_64/boot.efi
 	mcopy -i fat.img x86_64/boot.efi ::/EFI/BOOT/BOOTX64.EFI
 
+	gcc -I$(HOME)/gnu-efi/inc -fpic -ffreestanding -fno-stack-protector -fno-stack-check -fshort-wchar -mno-red-zone -maccumulate-outgoing-args -c heliuminst.c -o x86_64/heliuminst.o
+	ld -shared -Bsymbolic -L$(HOME)/gnu-efi/x86_64/lib -L$(HOME)/gnu-efi/x86_64/gnuefi -T$(HOME)/gnu-efi/gnuefi/elf_x86_64_efi.lds $(HOME)/gnu-efi/x86_64/gnuefi/crt0-efi-x86_64.o x86_64/heliuminst.o -o x86_64/heliuminst.so -lgnuefi -lefi
+	objcopy -j .text -j .sdata -j .data -j .rodata -j .dynamic -j .dynsym  -j .rel -j .rela -j .rel.* -j .rela.* -j .reloc --target efi-app-x86_64 --subsystem=10 x86_64/heliuminst.so x86_64/heliuminst.efi
+	mcopy -i fat.img x86_64/heliuminst.efi ::/
+
 arm_build: mkdisk mkver
 	@if [ ! -d arm ]; then mkdir arm; fi
 	$(ARM_CC) \

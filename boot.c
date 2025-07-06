@@ -1,7 +1,7 @@
 #include <efi.h>
 #include <efilib.h>
 
-CHAR16 filepath[100] = {0};
+CHAR16 filepath[100] = {0};			// bootloader file path
 UINTN bufsize = sizeof(filepath);
 
 extern const CHAR16 version[];
@@ -37,6 +37,9 @@ efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
 	EFI_FILE_HANDLE RootFS, File;
 	EFI_GUID LoadedImageProtocol = EFI_LOADED_IMAGE_PROTOCOL_GUID;
 	EFI_GUID FileSystemProtocol = EFI_SIMPLE_FILE_SYSTEM_PROTOCOL_GUID;
+	EFI_INPUT_KEY key;
+	EFI_HANDLE KernelImage;
+	EFI_DEVICE_PATH *FilePath;		// EFI file path
 
 	InitializeLib(ImageHandle, SystemTable);
 
@@ -68,7 +71,6 @@ efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
 
 	// HeliumBoot main loop.
 	for (;;) {
-		EFI_INPUT_KEY key;
 		Print(L": ");
 		Input(L"", filepath, sizeof(filepath) / sizeof(CHAR16));
 		Print(L"\n");
@@ -79,14 +81,21 @@ efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
 		Status = uefi_call_wrapper(RootFS->Open, 5, RootFS, &File, filepath,
 			EFI_FILE_MODE_READ, 0);
 		if (!EFI_ERROR(Status)) {
-			EFI_HANDLE KernelImage;
+			// Get file path.
+			FilePath = FileDevicePath(LoadedImage->DeviceHandle, filepath);
+			if (FilePath == NULL) {
+				Print(L"Could not create device path for file\n");
+				return EFI_NOT_FOUND;
+			}
+			// Load the file.
 			Status = uefi_call_wrapper(SystemTable->BootServices->LoadImage,
-				6, FALSE, ImageHandle, NULL, File, 0, &KernelImage);
+				6, FALSE, ImageHandle, FilePath, NULL, 0, &KernelImage);
 			if (EFI_ERROR(Status)) {
-				Print(L"Failed to load image\n");
+				Print(L"Failed to load image (%r)\n", Status);
 				uefi_call_wrapper(File->Close, 1, File);
 				return Status;
 			}
+			// Execute the file.
 			Status = uefi_call_wrapper(SystemTable->BootServices->StartImage,
 				3, KernelImage, NULL, NULL);
 			if (EFI_ERROR(Status)) {
