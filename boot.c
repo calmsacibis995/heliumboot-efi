@@ -2,7 +2,6 @@
 #include <efilib.h>
 
 CHAR16 filepath[100] = {0};
-UINTN retry = 0;
 UINTN bufsize = sizeof(filepath);
 
 extern const CHAR16 version[];
@@ -96,12 +95,6 @@ efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
 			}
 		} else {
 			Print(L"Could not open file: %s\n", filepath);
-		}
-
-		retry++;
-		if (retry > 2) {
-			Print(L"Load attempts exhausted, exiting.\n");
-			break;
 		}
 	}
 

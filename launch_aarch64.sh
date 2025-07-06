@@ -10,3 +10,5 @@ qemu-system-aarch64 -M virt \
 	-object rng-random,filename=/dev/urandom,id=rng0 \
 	-device virtio-rng-pci,rng=rng0 \
 	-net none \
+	-device virtio-gpu
+	-device usb-kbd
