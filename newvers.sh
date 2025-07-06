@@ -11,6 +11,6 @@ cat > vers.c << EOF
 #include <efilib.h>
 
 const CHAR16 version[] = L"Version 1.0";
-const CHAR16 revision[] = L"Internal revision ${rmj}.${rmi}, ${d})";
+const CHAR16 revision[] = L"Internal revision ${rmj}.${rmi}, ${d}";
 const CHAR16 blddate[] = L"${t}";
 EOF
