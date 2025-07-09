@@ -132,7 +132,7 @@ efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
 		CHAR16 *command, *arguments;
 		struct boot_command_tab *cmd_table_ptr;
 
-		Print(L": ");
+		Print(L">> ");
 		Input(L"", filepath, sizeof(filepath) / sizeof(CHAR16));
 		Print(L"\n");
 
