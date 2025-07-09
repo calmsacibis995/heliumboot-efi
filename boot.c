@@ -23,6 +23,9 @@ UINTN bufsize = sizeof(filepath);
 
 EFI_FILE_HANDLE RootFS, File;
 EFI_LOADED_IMAGE *LoadedImage;
+BOOLEAN exit_flag = FALSE;
+
+EFI_HANDLE gImageHandle = NULL;
 
 CHAR16 *ArchNames[] = {
 	L"ia32",
@@ -83,9 +86,7 @@ efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
 
 	InitializeLib(ImageHandle, SystemTable);
 
-	Print(L"\nHeliumBoot/EFI (%s)\n", ArchNames[Platform]);
-	Print(L"%s - %s\n", version, revision);
-	Print(L"Built %s\n\n", blddate);
+	gImageHandle = ImageHandle;
 
 	// Get info about our loaded image.
 	Status = uefi_call_wrapper(SystemTable->BootServices->HandleProtocol,
@@ -94,6 +95,19 @@ efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
 		Print(L"Could not get loaded image protocol\n");
 		return Status;
 	}
+
+#if _LP64
+	Print(L"Loaded image      : 0x%lX\n", LoadedImage);
+	Print(L"FilePath          : 0x%lX\n", LoadedImage->FilePath);
+	Print(L"ImageBase         : 0x%lX\n", LoadedImage->ImageBase);
+	Print(L"ImageSize         : 0x%lX\n", LoadedImage->ImageSize);
+#else
+	Print(L"Loaded image      : 0x%X\n", LoadedImage);
+	Print(L"FilePath          : 0x%X\n", LoadedImage->FilePath);
+	Print(L"ImageBase         : 0x%X\n", LoadedImage->ImageBase);
+	Print(L"ImageSize         : 0x%X\n", LoadedImage->ImageSize);
+#endif
+
 
 	// Get filesystem type and open the device.
 	Status = uefi_call_wrapper(SystemTable->BootServices->HandleProtocol,
@@ -108,6 +122,10 @@ efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
 		Print(L"Could not open root filesystem\n");
 		return Status;
 	}
+
+	Print(L"\nHeliumBoot/EFI (%s)\n", ArchNames[Platform]);
+	Print(L"%s - %s\n", version, revision);
+	Print(L"Built %s\n\n", blddate);
 
 	// HeliumBoot main loop.
 	for (;;) {
@@ -140,11 +158,11 @@ efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
 			}
 		}
 
-		if (!matched_command) {
-			Status = LoadFile(ImageHandle, SystemTable);
-			if (EFI_ERROR(Status))
-				Print(L"Failed to load file (%r)\n", Status);
-		}
+		if (exit_flag)
+			break;
+
+		if (!matched_command)
+			Print(L"Unknown command. Type '?' or 'help' for a list of built-in commands.\n");
 	}
 
 	return EFI_SUCCESS;
