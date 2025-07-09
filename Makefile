@@ -28,9 +28,77 @@ ia32_build:
 
 x86_64_build: mkdisk mkver
 	@if [ ! -d x86_64 ]; then mkdir x86_64; fi
-	gcc -I$(HOME)/gnu-efi/inc -fpic -ffreestanding -fno-stack-protector -fno-stack-check -fshort-wchar -mno-red-zone -maccumulate-outgoing-args -c boot.c -o x86_64/boot.o
-	gcc -I$(HOME)/gnu-efi/inc -fpic -ffreestanding -fno-stack-protector -fno-stack-check -fshort-wchar -mno-red-zone -maccumulate-outgoing-args -c vers.c -o x86_64/vers.o
-	ld -shared -Bsymbolic -L$(HOME)/gnu-efi/x86_64/lib -L$(HOME)/gnu-efi/x86_64/gnuefi -T$(HOME)/gnu-efi/gnuefi/elf_x86_64_efi.lds $(HOME)/gnu-efi/x86_64/gnuefi/crt0-efi-x86_64.o x86_64/boot.o x86_64/vers.o -o x86_64/boot.so -lgnuefi -lefi
+
+	gcc \
+		-I$(HOME)/gnu-efi/inc \
+		-fpic \
+		-ffreestanding \
+		-fno-stack-protector \
+		-fno-stack-check \
+		-fshort-wchar \
+		-mno-red-zone \
+		-maccumulate-outgoing-args \
+		-c commands.c -o x86_64/commands.o
+
+	gcc \
+		-I$(HOME)/gnu-efi/inc \
+		-fpic \
+		-ffreestanding \
+		-fno-stack-protector \
+		-fno-stack-check \
+		-fshort-wchar \
+		-mno-red-zone \
+		-maccumulate-outgoing-args \
+		-c loadfile.c -o x86_64/loadfile.o
+
+	gcc \
+		-I$(HOME)/gnu-efi/inc \
+		-fpic \
+		-ffreestanding \
+		-fno-stack-protector \
+		-fno-stack-check \
+		-fshort-wchar \
+		-mno-red-zone \
+		-maccumulate-outgoing-args \
+		-c boot.c -o x86_64/boot.o
+
+	gcc \
+		-I$(HOME)/gnu-efi/inc \
+		-fpic \
+		-ffreestanding \
+		-fno-stack-protector \
+		-fno-stack-check \
+		-fshort-wchar \
+		-mno-red-zone \
+		-maccumulate-outgoing-args \
+		-c cmd_table.c -o x86_64/cmd_table.o
+
+	gcc \
+		-I$(HOME)/gnu-efi/inc \
+		-fpic \
+		-ffreestanding \
+		-fno-stack-protector \
+		-fno-stack-check \
+		-fshort-wchar \
+		-mno-red-zone \
+		-maccumulate-outgoing-args \
+		-c vers.c -o x86_64/vers.o
+
+	ld \
+		-shared \
+		-Bsymbolic \
+		-L$(HOME)/gnu-efi/x86_64/lib \
+		-L$(HOME)/gnu-efi/x86_64/gnuefi \
+		-T$(HOME)/gnu-efi/gnuefi/elf_x86_64_efi.lds \
+		$(HOME)/gnu-efi/x86_64/gnuefi/crt0-efi-x86_64.o \
+		x86_64/commands.o \
+		x86_64/loadfile.o \
+		x86_64/cmd_table.o \
+		x86_64/boot.o \
+		x86_64/vers.o \
+		-o x86_64/boot.so \
+		-lgnuefi -lefi
+
 	objcopy -j .text -j .sdata -j .data -j .rodata -j .dynamic -j .dynsym  -j .rel -j .rela -j .rel.* -j .rela.* -j .reloc --target efi-app-x86_64 --subsystem=10 x86_64/boot.so x86_64/boot.efi
 	mcopy -i fat.img x86_64/boot.efi ::/EFI/BOOT/BOOTX64.EFI
 
@@ -98,6 +166,33 @@ aarch64_build: mkdisk mkver
 		-fno-stack-protector \
 		-fno-stack-check \
 		-fshort-wchar \
+		-c commands.c -o aarch64/commands.o
+
+	$(AARCH64_CC) \
+		-I$(HOME)/gnu-efi/inc \
+		-fpic \
+		-ffreestanding \
+		-fno-stack-protector \
+		-fno-stack-check \
+		-fshort-wchar \
+		-c loadfile.c -o aarch64/loadfile.o
+
+	$(AARCH64_CC) \
+		-I$(HOME)/gnu-efi/inc \
+		-fpic \
+		-ffreestanding \
+		-fno-stack-protector \
+		-fno-stack-check \
+		-fshort-wchar \
+		-c cmd_table.c -o aarch64/cmd_table.o
+
+	$(AARCH64_CC) \
+		-I$(HOME)/gnu-efi/inc \
+		-fpic \
+		-ffreestanding \
+		-fno-stack-protector \
+		-fno-stack-check \
+		-fshort-wchar \
 		-c vers.c -o aarch64/vers.o
 
 	$(AARCH64_LD) \
@@ -108,7 +203,12 @@ aarch64_build: mkdisk mkver
 		-L$(HOME)/gnu-efi/aarch64/gnuefi \
 		-T$(HOME)/gnu-efi/gnuefi/elf_aarch64_efi.lds \
 		$(HOME)/gnu-efi/aarch64/gnuefi/crt0-efi-aarch64.o \
-		aarch64/boot.o aarch64/vers.o -o aarch64/boot.so \
+		aarch64/commands.o \
+		aarch64/loadfile.o \
+		aarch64/cmd_table.o \
+		aarch64/boot.o \
+		aarch64/vers.o \
+		-o aarch64/boot.so \
 		-lgnuefi -lefi
 
 	$(AARCH64_OBJCOPY) \

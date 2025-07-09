@@ -1,3 +1,8 @@
+/*
+ * HeliumInst - An EFI-based HeliumOS installation program.
+ * Launched by HeliumBoot (see boot.c)
+ */
+
 #include <efi.h>
 #include <efilib.h>
 
@@ -9,7 +14,7 @@ efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
 
 	InitializeLib(ImageHandle, SystemTable);
 
-	Print(L"\nHeliumOS -- Initial Load: Installation media to Drive\n\n");
+	Print(L"\nHeliumOS -- Initial Load: Installation Media to Drive\n\n");
 	Print(L"The type of disk drive on which the Root file system will reside,\n");
 	Print(L"as well as the type of media that will be used for restoring\n");
 	Print(L"the rest of the operating system must be specified below.\n\n");
@@ -25,10 +30,14 @@ efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
 
 	Print(L"The HeliumOS miniroot has been successfully copied to your drive.\n");
 	Print(L"To boot HeliumOS in order to finish restoring the system,\n");
-	Print(L"reboot the system, and boot from the HeliumOS drive.\n");
+	Print(L"reboot the system, and boot from the HeliumOS drive.\n\n");
+
 	Print(L"Note that the HeliumOS will start in single-user mode.\n");
 	Print(L"Once you reach the shell prompt, type the command 'heliumrest'\n");
 	Print(L"to finish restoring the full HeliumOS system.\n\n");
+
+	Print(L"Good Luck!\n\n");
+	Print(L"The program will now exit.\n\n");
 
 	return EFI_SUCCESS;
 }

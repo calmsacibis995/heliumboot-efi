@@ -1,12 +1,28 @@
+/*
+ * Copyright (c) 1982, 1983 The Regents of the University of California.
+ * All rights reserved.
+ *
+ * Derived from 4.2BSD's /usr/src/sys/stand/boot.c
+ * Revision 6.1, 83/07/29
+ *
+ * New features:
+ *	- Machine independent.
+ *	- UEFI support.
+ *	- A built-in command interpreter.
+ *	- Executes ELF and EFI binaries.
+ *	- Small size, yet with comfort features.
+ */
+
 #include <efi.h>
 #include <efilib.h>
+
+#include "boot.h"
 
 CHAR16 filepath[100] = {0};			// bootloader file path
 UINTN bufsize = sizeof(filepath);
 
-extern const CHAR16 version[];
-extern const CHAR16 revision[];
-extern const CHAR16 blddate[];
+EFI_FILE_HANDLE RootFS, File;
+EFI_LOADED_IMAGE *LoadedImage;
 
 CHAR16 *ArchNames[] = {
 	L"ia32",
@@ -26,20 +42,44 @@ UINTN Platform = 1;
 UINTN Platform = 2;
 #elif defined(__aarch64__)
 UINTN Platform = 3;
+#elif defined(__ia64__)
+UINTN Platform = 4;
+#elif defined(__riscv) && __riscv_xlen == 64
+UINTN Platform = 5;
 #endif
+
+static void
+SplitCommandLine(CHAR16 *line, CHAR16 **command, CHAR16 **arguments)
+{
+	CHAR16 *p;
+
+	*command = line;
+	*arguments = L"";
+
+	p = line;
+	while (*p != L'\0' && *p != L' ')
+		p++;
+
+	if (*p == L' ') {
+		*p = L'\0';
+		p++;
+
+		while (*p == L' ')
+			p++;
+
+		*arguments = p;
+	}
+}
 
 EFI_STATUS EFIAPI
 efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
 {
 	EFI_STATUS Status;
-	EFI_LOADED_IMAGE *LoadedImage;
 	EFI_FILE_IO_INTERFACE *FileSystem;
-	EFI_FILE_HANDLE RootFS, File;
 	EFI_GUID LoadedImageProtocol = EFI_LOADED_IMAGE_PROTOCOL_GUID;
 	EFI_GUID FileSystemProtocol = EFI_SIMPLE_FILE_SYSTEM_PROTOCOL_GUID;
 	EFI_INPUT_KEY key;
-	EFI_HANDLE KernelImage;
-	EFI_DEVICE_PATH *FilePath;		// EFI file path
+	BOOLEAN matched_command;
 
 	InitializeLib(ImageHandle, SystemTable);
 
@@ -71,6 +111,10 @@ efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
 
 	// HeliumBoot main loop.
 	for (;;) {
+		matched_command = FALSE;
+		CHAR16 *command, *arguments;
+		struct boot_command_tab *cmd_table_ptr;
+
 		Print(L": ");
 		Input(L"", filepath, sizeof(filepath) / sizeof(CHAR16));
 		Print(L"\n");
@@ -78,32 +122,28 @@ efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
 		if (StrCmp(L"", filepath) == 0)
 			continue;
 
-		Status = uefi_call_wrapper(RootFS->Open, 5, RootFS, &File, filepath,
-			EFI_FILE_MODE_READ, 0);
-		if (!EFI_ERROR(Status)) {
-			// Get file path.
-			FilePath = FileDevicePath(LoadedImage->DeviceHandle, filepath);
-			if (FilePath == NULL) {
-				Print(L"Could not create device path for file\n");
-				return EFI_NOT_FOUND;
+		// Split the command line to fetch command/program filename,
+		// as well as any arguments.
+		SplitCommandLine(filepath, &command, &arguments);
+
+		for (cmd_table_ptr = cmd_tab; cmd_table_ptr->cmd_name != NULL; cmd_table_ptr++) {
+			if (StrCmp(command, cmd_table_ptr->cmd_name) == 0) {
+				if (cmd_table_ptr->cmd_arg_type == CMD_REQUIRED_ARGS && (arguments == NULL || *arguments == L'\0')) {
+					Print(L"Error: %s requires arguments.\n", cmd_table_ptr->cmd_name);
+					matched_command = TRUE;
+					break;
+				} else {
+					cmd_table_ptr->cmd_func(arguments);
+					matched_command = TRUE;
+					break;
+				}
 			}
-			// Load the file.
-			Status = uefi_call_wrapper(SystemTable->BootServices->LoadImage,
-				6, FALSE, ImageHandle, FilePath, NULL, 0, &KernelImage);
-			if (EFI_ERROR(Status)) {
-				Print(L"Failed to load image (%r)\n", Status);
-				uefi_call_wrapper(File->Close, 1, File);
-				return Status;
-			}
-			// Execute the file.
-			Status = uefi_call_wrapper(SystemTable->BootServices->StartImage,
-				3, KernelImage, NULL, NULL);
-			if (EFI_ERROR(Status)) {
-				Print(L"Failed to start kernel image\n");
-				return Status;
-			}
-		} else {
-			Print(L"Could not open file: %s\n", filepath);
+		}
+
+		if (!matched_command) {
+			Status = LoadFile(ImageHandle, SystemTable);
+			if (EFI_ERROR(Status))
+				Print(L"Failed to load file (%r)\n", Status);
 		}
 	}
 
