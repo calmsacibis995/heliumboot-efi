@@ -108,7 +108,6 @@ efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
 	Print(L"ImageSize         : 0x%X\n", LoadedImage->ImageSize);
 #endif
 
-
 	// Get filesystem type and open the device.
 	Status = uefi_call_wrapper(SystemTable->BootServices->HandleProtocol,
 		3, LoadedImage->DeviceHandle, &FileSystemProtocol, (void**)&FileSystem);

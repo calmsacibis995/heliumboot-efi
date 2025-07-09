@@ -37,6 +37,7 @@ extern void exit(CHAR16 *args);
 extern void help(CHAR16 *args);
 extern void ls(CHAR16 *args);
 extern void reboot(CHAR16 *args);
+extern void print_revision(CHAR16 *args);
 extern void print_version(CHAR16 *args);
 
 // cmd_table.c

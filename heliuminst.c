@@ -6,11 +6,15 @@
 #include <efi.h>
 #include <efilib.h>
 
+CHAR16 buf[100] = {0};
+BOOLEAN sysvr2_flag = FALSE;
+BOOLEAN sysvr3_flag = FALSE;
+BOOLEAN unix_flag = FALSE;
+
 EFI_STATUS EFIAPI
 efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
 {
 	EFI_STATUS Status;
-	EFI_BLOCK_IO_PROTOCOL *BlockIo;
 
 	InitializeLib(ImageHandle, SystemTable);
 
@@ -25,14 +29,62 @@ efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
 	Print(L"Use the Backspace key to erase the last character typed.\n\n");
 
 	Print(L"Note that if you have Secure Boot enabled, reboot your system,\n");
-	Print(L"enter your UEFI BIOS settings and disable it! For more information\n");
-	Print(L"on how to enter your UEFI BIOS settings, contact your manufacturer.\n\n");
+	Print(L"enter your UEFI BIOS settings and disable it before beginning\n");
+	Print(L"the installation, otherwise you will not be able to boot HeliumOS.\n");
+	Print(L"For more information on how to enter your UEFI BIOS settings,\n");
+	Print(L"contact your manufacturer.\n\n");
 
-	Print(L"The HeliumOS miniroot has been successfully copied to your drive.\n");
+	// HeliumInst main loop
+	for (;;) {
+		// Question 1
+		for (;;) {
+			Print(L"Will you be installing Unix (HeliumOS 2.x+) or HeliumOS 1.x?\n");
+			Print(L"Type 'y' for Unix, or 'n' for HeliumOS 1.x: ");
+			Input(L"", buf, sizeof(buf) / sizeof(CHAR16));
+			Print(L"\n");
+
+			if (StrCmp(buf, L"y") == 0) {
+				unix_flag = TRUE;
+				break;
+			} else if (StrCmp(buf, L"n") == 0)
+				break;
+			else
+				Print(L"Invalid input. Please try again.\n");
+		}
+
+		// Clear the buffer for the next question.
+		SetMem(buf, sizeof(buf) / sizeof(CHAR16), 0);
+
+		// Question 2a - HeliumOS 2.x+
+		for (;;) {
+			Print(L"Are you installing SVR2 or SVR3.2?\n");
+			Print(L"Type '2' for SVR2 or '3.2' for SVR3.2: ");
+			Input(L"", buf, sizeof(buf) / sizeof(CHAR16));
+			Print(L"\n");
+
+			if (StrCmp(buf, L"2") == 0) {
+				sysvr2_flag = TRUE;
+				break;
+			} else if (StrCmp(buf, L"3.2") == 0) {
+				sysvr3_flag = TRUE;
+				break;
+			} else
+				Print(L"Invalid input. Please try again.\n");
+		}
+
+		break;
+	}
+
+	Print(L"\nThe HeliumOS miniroot has been successfully copied to your drive.\n");
 	Print(L"To boot HeliumOS in order to finish restoring the system,\n");
-	Print(L"reboot the system, and boot from the HeliumOS drive.\n\n");
+	Print(L"type 'reboot' at the HeliumBoot prompt, and boot from the\n");
+	Print(L"HeliumOS drive where the miniroot was installed. At the\n");
+	Print(L"HeliumBoot prompt, type:\n\n");
+	Print(L"\t\tboot hd(X,1)unix\n\n");
+	Print(L"where X corresponds to the hard disk where you installed the\n");
+	Print(L"HeliumOS miniroot. Then press Enter. HeliumOS will start up.\n\n");
 
-	Print(L"Note that the HeliumOS will start in single-user mode.\n");
+	Print(L"Note that HeliumOS will start in single-user mode.\n");
 	Print(L"Once you reach the shell prompt, type the command 'heliumrest'\n");
 	Print(L"to finish restoring the full HeliumOS system.\n\n");
 

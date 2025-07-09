@@ -12,6 +12,7 @@ struct boot_command_tab cmd_tab[] = {
 	{ L"help", help, CMD_NO_ARGS, L"help: help" },
 	{ L"ls", ls, CMD_OPTIONAL_ARGS, L"ls: [DIRECTORY] [DEVICE]" },
 	{ L"reboot", reboot, CMD_NO_ARGS, L"reboot: reboot" },
+	{ L"revision", print_revision, CMD_NO_ARGS, L"revision: revision" },
 	{ L"version", print_version, CMD_NO_ARGS, L"version: version" },
 	{ NULL, NULL, CMD_NO_ARGS, NULL }
 };
