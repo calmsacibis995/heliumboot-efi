@@ -22,6 +22,12 @@ boot_efi(CHAR16 *args)
 }
 
 void
+cls(CHAR16 *args)
+{
+	Print(L"Not implemented yet!\n");
+}
+
+void
 echo(CHAR16 *args)
 {
 	Print(L"%s\n", args);

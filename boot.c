@@ -24,7 +24,6 @@ UINTN bufsize = sizeof(filepath);
 EFI_FILE_HANDLE RootFS, File;
 EFI_LOADED_IMAGE *LoadedImage;
 BOOLEAN exit_flag = FALSE;
-
 EFI_HANDLE gImageHandle = NULL;
 
 CHAR16 *ArchNames[] = {

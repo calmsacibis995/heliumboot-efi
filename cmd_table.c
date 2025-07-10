@@ -7,6 +7,8 @@ struct boot_command_tab cmd_tab[] = {
 	{ L"?", help, CMD_NO_ARGS, L"?: help" },
 	{ L"boot", boot, CMD_REQUIRED_ARGS, L"boot: DEVICE:PATH [ARGS]" },
 	{ L"boot_efi", boot_efi, CMD_REQUIRED_ARGS, L"boot_efi: DEVICE:PATH [ARGS]" },
+	{ L"clear", cls, CMD_NO_ARGS, L"clear: cls" },
+	{ L"cls", cls, CMD_NO_ARGS, L"cls: cls" },
 	{ L"echo", echo, CMD_REQUIRED_ARGS, L"echo: STRING" },
 	{ L"exit", exit, CMD_NO_ARGS, L"exit: exit" },
 	{ L"help", help, CMD_NO_ARGS, L"help: help" },
