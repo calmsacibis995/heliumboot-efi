@@ -20,13 +20,16 @@ mkdisk:
 		echo "fat.img already exists, skipping creation."; \
 	fi
 
-mkver:
-	./newvers.sh
+mkver_x86_64:
+	./newvers.sh x86_64
+
+mkver_aarch64:
+	./newvers.sh x86_64
 
 ia32_build:
 	@echo "Not available yet!"
 
-x86_64_build: mkdisk mkver
+x86_64_build: mkdisk mkver_x86_64
 	@if [ ! -d x86_64 ]; then mkdir x86_64; fi
 
 	gcc \
@@ -105,7 +108,7 @@ x86_64_build: mkdisk mkver
 	gcc -I$(HOME)/gnu-efi/inc -fpic -ffreestanding -fno-stack-protector -fno-stack-check -fshort-wchar -mno-red-zone -maccumulate-outgoing-args -c heliuminst.c -o x86_64/heliuminst.o
 	ld -shared -Bsymbolic -L$(HOME)/gnu-efi/x86_64/lib -L$(HOME)/gnu-efi/x86_64/gnuefi -T$(HOME)/gnu-efi/gnuefi/elf_x86_64_efi.lds $(HOME)/gnu-efi/x86_64/gnuefi/crt0-efi-x86_64.o x86_64/heliuminst.o -o x86_64/heliuminst.so -lgnuefi -lefi
 	objcopy -j .text -j .sdata -j .data -j .rodata -j .dynamic -j .dynsym  -j .rel -j .rela -j .rel.* -j .rela.* -j .reloc --target efi-app-x86_64 --subsystem=10 x86_64/heliuminst.so x86_64/heliuminst.efi
-	mcopy -i fat.img x86_64/heliuminst.efi ::/
+	mcopy -i fat.img x86_64/heliuminst.efi ::/hinst_x64.efi
 
 arm_build: mkdisk mkver
 	@if [ ! -d arm ]; then mkdir arm; fi
@@ -147,7 +150,7 @@ arm_build: mkdisk mkver
 
 	mcopy -i fat.img arm/boot.efi ::/EFI/BOOT/BOOTARM.EFI
 
-aarch64_build: mkdisk mkver
+aarch64_build: mkdisk mkver_aarch64
 	@if [ ! -d aarch64 ]; then mkdir aarch64; fi
 
 	$(AARCH64_CC) \
@@ -228,6 +231,45 @@ aarch64_build: mkdisk mkver
 		aarch64/boot.so aarch64/boot.efi
 
 	mcopy -i fat.img aarch64/boot.efi ::/EFI/BOOT/BOOTAA64.EFI
+
+	$(AARCH64_CC) \
+		-I$(HOME)/gnu-efi/inc \
+		-fpic \
+		-ffreestanding \
+		-fno-stack-protector \
+		-fno-stack-check \
+		-fshort-wchar \
+		-c heliuminst.c -o aarch64/heliuminst.o
+
+	$(AARCH64_LD) \
+		-shared \
+		-Bsymbolic \
+		-nostdlib \
+		-L$(HOME)/gnu-efi/aarch64/lib \
+		-L$(HOME)/gnu-efi/aarch64/gnuefi \
+		-T$(HOME)/gnu-efi/gnuefi/elf_aarch64_efi.lds \
+		$(HOME)/gnu-efi/aarch64/gnuefi/crt0-efi-aarch64.o \
+		aarch64/heliuminst.o \
+		-o aarch64/heliuminst.so \
+		-lgnuefi -lefi
+
+	$(AARCH64_OBJCOPY) \
+		-j .text \
+		-j .sdata \
+		-j .data \
+		-j .rodata \
+		-j .dynamic \
+		-j .dynsym  \
+		-j .rel \
+		-j .rela \
+		-j .rel.* \
+		-j .rela.* \
+		-j .reloc \
+		--target efi-app-aarch64 \
+		--subsystem=10 \
+		aarch64/heliuminst.so aarch64/heliuminst.efi
+
+	mcopy -i fat.img aarch64/heliuminst.efi ::/hinst_aarch64.efi
 
 clean:
 	rm -rf ia32 x86_64 arm aarch64 fat.img vers.c

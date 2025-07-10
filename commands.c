@@ -69,11 +69,11 @@ reboot(CHAR16 *args)
 void
 print_revision(CHAR16 *args)
 {
-	Print(L"%s\n", revision);
+	Print(L"Internal revision %s, %s\n", getrevision(), getrevdate());
 }
 
 void
 print_version(CHAR16 *args)
 {
-	Print(L"HeliumBoot %s\n", version);
+	Print(L"%s\n", getversion());
 }

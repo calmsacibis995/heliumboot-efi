@@ -15,9 +15,10 @@ struct boot_command_tab {
 };
 
 // vers.c
-extern const CHAR16 version[];
-extern const CHAR16 revision[];
-extern const CHAR16 blddate[];
+extern const CHAR16 *getversion(void);
+extern const CHAR16 *getrevision(void);
+extern const CHAR16 *getblddate(void);
+extern const CHAR16 *getrevdate(void);
 
 // boot.c
 extern CHAR16 filepath[100];

@@ -26,30 +26,6 @@ EFI_LOADED_IMAGE *LoadedImage;
 BOOLEAN exit_flag = FALSE;
 EFI_HANDLE gImageHandle = NULL;
 
-CHAR16 *ArchNames[] = {
-	L"ia32",
-	L"x86_64",
-	L"arm",
-	L"aarch64",
-	L"ia64",
-	L"riscv64",
-	NULL
-};
-
-#if defined(__i386__)
-UINTN Platform = 0;
-#elif defined(__x86_64__)
-UINTN Platform = 1;
-#elif defined(__arm__)
-UINTN Platform = 2;
-#elif defined(__aarch64__)
-UINTN Platform = 3;
-#elif defined(__ia64__)
-UINTN Platform = 4;
-#elif defined(__riscv) && __riscv_xlen == 64
-UINTN Platform = 5;
-#endif
-
 static void
 SplitCommandLine(CHAR16 *line, CHAR16 **command, CHAR16 **arguments)
 {
@@ -121,9 +97,7 @@ efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
 		return Status;
 	}
 
-	Print(L"\nHeliumBoot/EFI (%s)\n", ArchNames[Platform]);
-	Print(L"%s - %s\n", version, revision);
-	Print(L"Built %s\n\n", blddate);
+	Print(L"\n%s\n", getversion());
 
 	// HeliumBoot main loop.
 	for (;;) {
