@@ -89,6 +89,7 @@ efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
 	}
 
 	Print(L"\n%s\n", getversion());
+	Print(L"Commit %s\n", getcommitno());
 
 	// HeliumBoot main loop.
 	for (;;) {

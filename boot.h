@@ -19,6 +19,7 @@ extern const CHAR16 *getversion(void);
 extern const CHAR16 *getrevision(void);
 extern const CHAR16 *getblddate(void);
 extern const CHAR16 *getrevdate(void);
+extern const CHAR16 *getcommitno(void);
 
 // boot.c
 extern CHAR16 filepath[100];
