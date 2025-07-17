@@ -1,16 +1,6 @@
 /*
- * Copyright (c) 1982, 1983 The Regents of the University of California.
+ * Copyright (c) 2025 Stefanos Stefanidis.
  * All rights reserved.
- *
- * Derived from 4.2BSD's /usr/src/sys/stand/boot.c
- * Revision 6.1, 83/07/29
- *
- * New features:
- *	- Machine independent.
- *	- UEFI support.
- *	- A built-in command interpreter.
- *	- Executes ELF and EFI binaries.
- *	- Small size, yet with comfort features.
  */
 
 #include <efi.h>
@@ -60,8 +50,9 @@ efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
 	BOOLEAN matched_command;
 
 	InitializeLib(ImageHandle, SystemTable);
-
 	gImageHandle = ImageHandle;
+
+	InitVideo();
 
 	// Get info about our loaded image.
 	Status = uefi_call_wrapper(SystemTable->BootServices->HandleProtocol,

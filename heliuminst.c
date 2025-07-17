@@ -9,7 +9,6 @@
 CHAR16 buf[100] = {0};
 BOOLEAN sysvr2_flag = FALSE;
 BOOLEAN sysvr3_flag = FALSE;
-BOOLEAN unix_flag = FALSE;
 
 EFI_STATUS EFIAPI
 efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
@@ -37,25 +36,6 @@ efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
 	// HeliumInst main loop
 	for (;;) {
 		// Question 1
-		for (;;) {
-			Print(L"Will you be installing Unix (HeliumOS 2.x+) or HeliumOS 1.x?\n");
-			Print(L"Type 'y' for Unix, or 'n' for HeliumOS 1.x: ");
-			Input(L"", buf, sizeof(buf) / sizeof(CHAR16));
-			Print(L"\n");
-
-			if (StrCmp(buf, L"y") == 0) {
-				unix_flag = TRUE;
-				break;
-			} else if (StrCmp(buf, L"n") == 0)
-				break;
-			else
-				Print(L"Invalid input. Please try again.\n");
-		}
-
-		// Clear the buffer for the next question.
-		SetMem(buf, sizeof(buf) / sizeof(CHAR16), 0);
-
-		// Question 2a - HeliumOS 2.x+
 		for (;;) {
 			Print(L"Are you installing SVR2 or SVR3.2?\n");
 			Print(L"Type '2' for SVR2 or '3.2' for SVR3.2: ");

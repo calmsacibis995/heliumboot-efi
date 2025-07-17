@@ -24,7 +24,7 @@ mkver_x86_64:
 	./newvers.sh x86_64
 
 mkver_aarch64:
-	./newvers.sh x86_64
+	./newvers.sh aarch64
 
 ia32_build:
 	@echo "Not available yet!"
@@ -85,6 +85,17 @@ x86_64_build: mkdisk mkver_x86_64
 		-fshort-wchar \
 		-mno-red-zone \
 		-maccumulate-outgoing-args \
+		-c video.c -o x86_64/video.o
+
+	gcc \
+		-I$(HOME)/gnu-efi/inc \
+		-fpic \
+		-ffreestanding \
+		-fno-stack-protector \
+		-fno-stack-check \
+		-fshort-wchar \
+		-mno-red-zone \
+		-maccumulate-outgoing-args \
 		-c vers.c -o x86_64/vers.o
 
 	ld \
@@ -98,6 +109,7 @@ x86_64_build: mkdisk mkver_x86_64
 		x86_64/loadfile.o \
 		x86_64/cmd_table.o \
 		x86_64/boot.o \
+		x86_64/video.o \
 		x86_64/vers.o \
 		-o x86_64/boot.so \
 		-lgnuefi -lefi
@@ -196,6 +208,15 @@ aarch64_build: mkdisk mkver_aarch64
 		-fno-stack-protector \
 		-fno-stack-check \
 		-fshort-wchar \
+		-c video.c -o aarch64/video.o
+
+	$(AARCH64_CC) \
+		-I$(HOME)/gnu-efi/inc \
+		-fpic \
+		-ffreestanding \
+		-fno-stack-protector \
+		-fno-stack-check \
+		-fshort-wchar \
 		-c vers.c -o aarch64/vers.o
 
 	$(AARCH64_LD) \
@@ -210,6 +231,7 @@ aarch64_build: mkdisk mkver_aarch64
 		aarch64/loadfile.o \
 		aarch64/cmd_table.o \
 		aarch64/boot.o \
+		aarch64/video.o \
 		aarch64/vers.o \
 		-o aarch64/boot.so \
 		-lgnuefi -lefi

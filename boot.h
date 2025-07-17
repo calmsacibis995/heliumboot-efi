@@ -45,4 +45,7 @@ extern void print_version(CHAR16 *args);
 // cmd_table.c
 extern struct boot_command_tab cmd_tab[];
 
+// video.c
+extern void InitVideo(void);
+
 #endif /* _BOOT_H_ */
