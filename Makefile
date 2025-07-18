@@ -294,6 +294,6 @@ aarch64_build: mkdisk mkver_aarch64
 	mcopy -i fat.img aarch64/heliuminst.efi ::/hinst_aarch64.efi
 
 clean:
-	rm -rf ia32 x86_64 arm aarch64 fat.img vers.c
+	rm -rf ia32 x86_64 arm aarch64 fat.img vers.c heliumboot.iso
 
 .PHONY: all mkdisk ia32_build x86_64_build arm_build
