@@ -62,6 +62,7 @@ efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
 		return Status;
 	}
 
+#ifdef DEBUG
 #if _LP64
 	Print(L"Loaded image      : 0x%lX\n", LoadedImage);
 	Print(L"FilePath          : 0x%lX\n", LoadedImage->FilePath);
@@ -72,7 +73,8 @@ efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
 	Print(L"FilePath          : 0x%X\n", LoadedImage->FilePath);
 	Print(L"ImageBase         : 0x%X\n", LoadedImage->ImageBase);
 	Print(L"ImageSize         : 0x%X\n", LoadedImage->ImageSize);
-#endif
+#endif /* _LP64 */
+#endif /* DEBUG */
 
 	// Get filesystem type and open the device.
 	Status = uefi_call_wrapper(SystemTable->BootServices->HandleProtocol,
