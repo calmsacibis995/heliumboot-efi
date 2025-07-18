@@ -1,10 +1,14 @@
+/*
+ * Common file routines.
+ */
+
 #include <efi.h>
 #include <efilib.h>
 
 #include "boot.h"
 
 EFI_STATUS
-LoadFile(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable, CHAR16 *path)
+LoadFileEFI(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable, CHAR16 *path)
 {
 	EFI_STATUS Status;
 	EFI_HANDLE KernelImage;

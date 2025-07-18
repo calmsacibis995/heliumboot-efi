@@ -29,7 +29,7 @@ extern BOOLEAN exit_flag;
 extern EFI_HANDLE gImageHandle;
 
 // loadfile.c
-extern EFI_STATUS LoadFile(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable, CHAR16 *args);
+extern EFI_STATUS LoadFileEFI(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable, CHAR16 *args);
 
 // commands.c
 extern void boot(CHAR16 *args);

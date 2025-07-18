@@ -16,7 +16,7 @@ boot_efi(CHAR16 *args)
 
 	Print(L"Booting EFI file: %s\n", args);
 
-	Status = LoadFile(gImageHandle, gST, args);
+	Status = LoadFileEFI(gImageHandle, gST, args);
 	if (EFI_ERROR(Status))
 		Print(L"boot_efi: Failed to boot file (%r)\n", Status);
 }
