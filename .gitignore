@@ -5,5 +5,4 @@ arm
 aarch64
 *.o
 *.so
-vers.c
 fat.img
