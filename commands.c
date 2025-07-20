@@ -6,7 +6,11 @@
 void
 boot(CHAR16 *args)
 {
-	Print(L"Not implemented yet!\n");
+	EFI_STATUS Status;
+
+	Status = LoadFile(args);
+	if (EFI_ERROR(Status))
+		Print(L"boot: Failed to boot file (%r)\n", Status);
 }
 
 void
@@ -96,18 +100,32 @@ ls(CHAR16 *args)
 		goto cleanup;
 	}
 
-	Print(L"Listing directory: %s\n", Path);
-
-	BufferSize = SIZE_OF_EFI_FILE_INFO + 256;
+	BufferSize = SIZE_OF_EFI_FILE_INFO + 512;
 	FileInfo = AllocatePool(BufferSize);
-
 	if (FileInfo == NULL) {
 		Print(L"Failed to allocate memory to list directory\n");
 		goto cleanup;
 	}
 
+	Status = uefi_call_wrapper(Dir->Read, 3, Dir, &BufferSize, FileInfo);
+	if (EFI_ERROR(Status)) {
+		Print(L"Failed to read from '%s': %r\n", Path, Status);
+		goto cleanup;
+	}
+
+	if (!(FileInfo->Attribute & EFI_FILE_DIRECTORY)) {
+		Print(L"<FILE>  %s  %ld bytes\n", Path, FileInfo->FileSize);
+		goto cleanup;
+	}
+
+	Print(L"Listing directory: %s\n", Path);
+
+	uefi_call_wrapper(Dir->SetPosition, 2, Dir, 0);
+
 	while (TRUE) {
+		BufferSize = SIZE_OF_EFI_FILE_INFO + 512;
 		Status = uefi_call_wrapper(Dir->Read, 3, Dir, &BufferSize, FileInfo);
+
 		if (EFI_ERROR(Status) || BufferSize == 0)
 			break;
 
@@ -117,21 +135,24 @@ ls(CHAR16 *args)
 		if (FileInfo->Attribute & EFI_FILE_DIRECTORY)
 			Print(L"  <DIR>  %s\n", FileInfo->FileName);
 		else
-			Print(L" <FILE>  %s  %ld\n", FileInfo->FileName, FileInfo->FileSize);
+			Print(L" <FILE>  %s  %ld bytes\n", FileInfo->FileName, FileInfo->FileSize);
 	}
 
 cleanup:
-	Print(L"Releasing FileInfo\n");
-	if (FileInfo)
+	if (FileInfo != NULL) {
+		Print(L"Releasing FileInfo\n");
 		FreePool(FileInfo);
+	}
 
-	Print(L"Releasing Dir\n");
-	if (Dir)
+	if (Dir != NULL) {
+		Print(L"Releasing Dir\n");
 		Dir->Close(Dir);
+	}
 
-	Print(L"Releasing Root\n");
-	if (Root)
+	if (Root != NULL) {
+		Print(L"Releasing Root\n");
 		Root->Close(Root);
+	}
 }
 
 void
