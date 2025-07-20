@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2025 Stefanos Stefanidis.
+ * All rights reserved.
+ */
+
 #ifndef _BOOT_H_
 #define _BOOT_H_
 
@@ -20,6 +25,7 @@ extern const CHAR16 *getrevision(void);
 extern const CHAR16 *getblddate(void);
 extern const CHAR16 *getrevdate(void);
 extern const CHAR16 *getcommitno(void);
+extern const CHAR16 *getbuildno(void);
 
 // boot.c
 extern CHAR16 filepath[100];
@@ -29,6 +35,7 @@ extern BOOLEAN exit_flag;
 extern EFI_HANDLE gImageHandle;
 
 // loadfile.c
+extern void LoadFile(void);
 extern EFI_STATUS LoadFileEFI(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable, CHAR16 *args);
 
 // commands.c

@@ -1,11 +1,17 @@
 /*
- * Common file routines.
+ * Common file loading routines.
  */
 
 #include <efi.h>
 #include <efilib.h>
 
 #include "boot.h"
+
+void
+LoadFile(void)
+{
+	Print(L"LoadFile: Not implemented yet!");
+}
 
 EFI_STATUS
 LoadFileEFI(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable, CHAR16 *path)

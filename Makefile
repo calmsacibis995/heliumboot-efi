@@ -10,7 +10,7 @@ AARCH64_OBJCOPY = $(AARCH64_PREFIX)objcopy
 
 all: x86_64_build aarch64_build
 
-mkdisk:
+prep_build:
 	if [ ! -e fat.img ]; then \
 		dd if=/dev/zero of=fat.img bs=1k count=1440; \
 		mformat -i fat.img -f 1440 ::; \
@@ -20,18 +20,16 @@ mkdisk:
 		echo "fat.img already exists, skipping creation."; \
 	fi
 
-mkver_x86_64:
-	./newvers.sh x86_64
+	@if [ ! -d x86_64 ]; then mkdir x86_64; fi
+	@if [ ! -d aarch64 ]; then mkdir aarch64; fi
 
-mkver_aarch64:
-	./newvers.sh aarch64
+	./newvers.sh x86_64 x86_64/vers.c
+	./newvers.sh aarch64 aarch64/vers.c
 
 ia32_build:
 	@echo "Not available yet!"
 
-x86_64_build: mkdisk mkver_x86_64
-	@if [ ! -d x86_64 ]; then mkdir x86_64; fi
-
+x86_64_build: prep_build
 	gcc \
 		-I$(HOME)/gnu-efi/inc \
 		-fpic \
@@ -96,7 +94,7 @@ x86_64_build: mkdisk mkver_x86_64
 		-fshort-wchar \
 		-mno-red-zone \
 		-maccumulate-outgoing-args \
-		-c vers.c -o x86_64/vers.o
+		-c x86_64/vers.c -o x86_64/vers.o
 
 	ld \
 		-shared \
@@ -162,9 +160,7 @@ arm_build: mkdisk mkver
 
 	mcopy -i fat.img arm/boot.efi ::/EFI/BOOT/BOOTARM.EFI
 
-aarch64_build: mkdisk mkver_aarch64
-	@if [ ! -d aarch64 ]; then mkdir aarch64; fi
-
+aarch64_build: prep_build
 	$(AARCH64_CC) \
 		-I$(HOME)/gnu-efi/inc \
 		-fpic \
@@ -217,7 +213,7 @@ aarch64_build: mkdisk mkver_aarch64
 		-fno-stack-protector \
 		-fno-stack-check \
 		-fshort-wchar \
-		-c vers.c -o aarch64/vers.o
+		-c aarch64/vers.c -o aarch64/vers.o
 
 	$(AARCH64_LD) \
 		-shared \
@@ -294,6 +290,6 @@ aarch64_build: mkdisk mkver_aarch64
 	mcopy -i fat.img aarch64/heliuminst.efi ::/hinst_aarch64.efi
 
 clean:
-	rm -rf ia32 x86_64 arm aarch64 fat.img vers.c heliumboot.iso
+	rm -rf ia32 x86_64 arm aarch64 fat.img heliumboot.iso
 
 .PHONY: all mkdisk ia32_build x86_64_build arm_build

@@ -16,7 +16,6 @@ InitVideo(void)
 	EFI_STATUS Status;
 	EFI_GUID GraphicsOutputProtocolGuid = EFI_GRAPHICS_OUTPUT_PROTOCOL_GUID;
 	UINT32 ModeNumber = 12;		// Default resolution of 1280x768
-	UINTN x, y;
 
 	Status = uefi_call_wrapper(BS->LocateProtocol, 3,
 		&GraphicsOutputProtocolGuid, NULL, (void **)&gop);
@@ -27,24 +26,9 @@ InitVideo(void)
 		return;
 	}
 
-	UINT32 *FrameBuffer = (UINT32 *)gop->Mode->FrameBufferBase;
-	UINTN Width  = gop->Mode->Info->HorizontalResolution;
-	UINTN Height = gop->Mode->Info->VerticalResolution;
-
-	Print(L"Current resolution: %ux%u\n",
-		gop->Mode->Info->HorizontalResolution,
-		gop->Mode->Info->VerticalResolution);
-	Print(L"Pixel format: %d\n", gop->Mode->Info->PixelFormat);
-
 	Status = uefi_call_wrapper(gop->SetMode, ModeNumber, gop, 0);
 	if (EFI_ERROR(Status)) {
 		Print(L"Failed to set video mode: %r\n", Status);
 		return;
-	}
-
-	for (y = 0; y < Height; ++y) {
-		for (x = 0; x < Width; ++x) {
-			FrameBuffer[y * Width + x] = 0x0000FF;
-		}
 	}
 }

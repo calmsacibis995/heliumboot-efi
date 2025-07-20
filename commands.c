@@ -53,7 +53,85 @@ help(CHAR16 *args)
 void
 ls(CHAR16 *args)
 {
-	Print(L"Not implemented yet!\n");
+	EFI_STATUS Status;
+	EFI_SIMPLE_FILE_SYSTEM_PROTOCOL *SimpleFileSystem;
+	EFI_FILE_PROTOCOL *Root = NULL;
+	EFI_FILE_PROTOCOL *Dir = NULL;
+	EFI_FILE_INFO *FileInfo = NULL;
+	UINTN BufferSize;
+	CHAR16 *Path = NULL;
+
+	Status = uefi_call_wrapper(BS->HandleProtocol, 3, gImageHandle,
+		&LoadedImageProtocol, (void **)&LoadedImage);
+	if (EFI_ERROR(Status)) {
+		Print(L"Failed to get LoadedImage protocol: %r\n", Status);
+		return;
+	}
+
+	Status = uefi_call_wrapper(BS->HandleProtocol, 3,
+		LoadedImage->DeviceHandle, &gEfiSimpleFileSystemProtocolGuid,
+		(void **)&SimpleFileSystem);
+
+	if (EFI_ERROR(Status)) {
+		Print(L"Failed to get SimpleFileSystem protocol: %r\n", Status);
+		return;
+	}
+
+	Status = uefi_call_wrapper(SimpleFileSystem->OpenVolume, 2,
+		SimpleFileSystem, &Root);
+	if (EFI_ERROR(Status)) {
+		Print(L"Failed to open volume: %r\n", Status);
+		return;
+	}
+
+	if (args == NULL || StrLen(args) == 0)
+		Path = L".";
+	else
+		Path = args;
+
+	Status = uefi_call_wrapper(Root->Open, 5, Root, &Dir, Path,
+		EFI_FILE_MODE_READ, 0);
+	if (EFI_ERROR(Status)) {
+		Print(L"Failed to open directory '%s': %r\n", Path, Status);
+		goto cleanup;
+	}
+
+	Print(L"Listing directory: %s\n", Path);
+
+	BufferSize = SIZE_OF_EFI_FILE_INFO + 256;
+	FileInfo = AllocatePool(BufferSize);
+
+	if (FileInfo == NULL) {
+		Print(L"Failed to allocate memory to list directory\n");
+		goto cleanup;
+	}
+
+	while (TRUE) {
+		Status = uefi_call_wrapper(Dir->Read, 3, Dir, &BufferSize, FileInfo);
+		if (EFI_ERROR(Status) || BufferSize == 0)
+			break;
+
+		if (StrCmp(FileInfo->FileName, L".") == 0 || StrCmp(FileInfo->FileName, L"..") == 0)
+			continue;
+
+		if (FileInfo->Attribute & EFI_FILE_DIRECTORY)
+			Print(L"  <DIR>  %s\n", FileInfo->FileName);
+		else
+			Print(L" <FILE>  %s  %ld\n", FileInfo->FileName, FileInfo->FileSize);
+	}
+
+cleanup:
+	Print(L"Releasing FileInfo\n");
+	if (FileInfo)
+		FreePool(FileInfo);
+
+	Print(L"Releasing Dir\n");
+	if (Dir)
+		Dir->Close(Dir);
+
+	Print(L"Releasing Root\n");
+	if (Root)
+		Root->Close(Root);
 }
 
 void
