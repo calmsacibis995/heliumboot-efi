@@ -126,6 +126,7 @@ ls(CHAR16 *args)
 		BufferSize = SIZE_OF_EFI_FILE_INFO + 512;
 		Status = uefi_call_wrapper(Dir->Read, 3, Dir, &BufferSize, FileInfo);
 
+
 		if (EFI_ERROR(Status) || BufferSize == 0)
 			break;
 
@@ -139,20 +140,44 @@ ls(CHAR16 *args)
 	}
 
 cleanup:
-	if (FileInfo != NULL) {
-		Print(L"Releasing FileInfo\n");
-		FreePool(FileInfo);
-	}
-
 	if (Dir != NULL) {
-		Print(L"Releasing Dir\n");
-		Dir->Close(Dir);
+		while (TRUE) {
+			BufferSize = 0;
+			Status = uefi_call_wrapper(Dir->Read, 3, Dir, &BufferSize, NULL);
+			if (Status == EFI_BUFFER_TOO_SMALL) {
+				if (FileInfo != NULL) {
+					FreePool(FileInfo);
+					FileInfo = NULL;
+				}
+				FileInfo = AllocatePool(BufferSize);
+				if (FileInfo == NULL) {
+					Print(L"Failed to allocate buffer for draining\n");
+					break;
+				}
+
+				Status = uefi_call_wrapper(Dir->Read, 3, Dir, &BufferSize, FileInfo);
+				if (EFI_ERROR(Status) || BufferSize == 0)
+					break;
+			} else if (EFI_ERROR(Status) || BufferSize == 0)
+				break;
+		}
+
+		if (Dir->Close != NULL) {
+			Status = uefi_call_wrapper(Dir->Close, 1, Dir);
+			if (EFI_ERROR(Status))
+				Print(L"Warning: Failed to close directory pointer: %r\n", Status);
+		}
+
+		Dir = NULL;
 	}
 
-	if (Root != NULL) {
-		Print(L"Releasing Root\n");
-		Root->Close(Root);
+	if (FileInfo != NULL) {
+		FreePool(FileInfo);
+		FileInfo = NULL;
 	}
+
+	if (Root != NULL && Root != Dir)
+		Root = NULL;
 }
 
 void
