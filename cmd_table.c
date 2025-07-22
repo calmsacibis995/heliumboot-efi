@@ -5,7 +5,7 @@
 
 struct boot_command_tab cmd_tab[] = {
 	{ L"?", help, CMD_NO_ARGS, L"?: help" },
-	{L"about", about, CMD_NO_ARGS, L"about: about" },
+	{ L"about", about, CMD_NO_ARGS, L"about: about" },
 	{ L"boot", boot, CMD_REQUIRED_ARGS, L"boot: DEVICE:PATH [ARGS]" },
 	{ L"boot_efi", boot_efi, CMD_REQUIRED_ARGS, L"boot_efi: DEVICE:PATH [ARGS]" },
 	{ L"clear", cls, CMD_NO_ARGS, L"clear: cls" },
@@ -15,6 +15,7 @@ struct boot_command_tab cmd_tab[] = {
 	{ L"exit", exit, CMD_NO_ARGS, L"exit: exit" },
 	{ L"help", help, CMD_NO_ARGS, L"help: help" },
 	{ L"ls", ls, CMD_OPTIONAL_ARGS, L"ls: [DIRECTORY] [DEVICE]" },
+	{ L"lsblk", lsblk, CMD_NO_ARGS, L"lsblk: lsblk" },
 	{ L"reboot", reboot, CMD_NO_ARGS, L"reboot: reboot" },
 	{ L"revision", print_revision, CMD_NO_ARGS, L"revision: revision" },
 	{ L"version", print_version, CMD_NO_ARGS, L"version: version" },

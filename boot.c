@@ -7,6 +7,8 @@
 #include <efilib.h>
 
 #include "boot.h"
+#include "vtoc.h"
+#include "part.h"
 
 CHAR16 filepath[100] = {0};			// bootloader file path
 UINTN bufsize = sizeof(filepath);
@@ -48,6 +50,10 @@ efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
 	BOOLEAN matched_command;
 	EFI_GUID LoadedImageProtocol = EFI_LOADED_IMAGE_PROTOCOL_GUID;
 	EFI_GUID FileSystemProtocol = EFI_SIMPLE_FILE_SYSTEM_PROTOCOL_GUID;
+	struct svr4_vtoc *Vtoc;
+	UINTN HandleCount;
+	EFI_HANDLE *HandleBuffer;
+	EFI_BLOCK_IO_PROTOCOL *BlockIo;
 
 	InitializeLib(ImageHandle, SystemTable);
 	gImageHandle = ImageHandle;
@@ -75,6 +81,31 @@ efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
 	Print(L"ImageSize         : 0x%X\n", LoadedImage->ImageSize);
 #endif /* _LP64 */
 #endif /* DEBUG_BLD */
+
+	Status = LibLocateHandle(ByProtocol, &BlockIoProtocol, NULL, &HandleCount, &HandleBuffer);
+	if (EFI_ERROR(Status)) {
+		Print(L"Failed to locate block I/O handles: %r\n", Status);
+		return Status;
+	}
+
+	Status = uefi_call_wrapper(BS->HandleProtocol, 3, HandleBuffer[0], &BlockIoProtocol, (void**)&BlockIo);
+	if (EFI_ERROR(Status)) {
+		Print(L"Failed to get Block I/O protocol: %r\n", Status);
+		FreePool(HandleBuffer);
+		return Status;
+	}
+
+	UINT32 PartitionStart;
+	Status = FindPartitionStart(BlockIo, &PartitionStart);
+	if (EFI_ERROR(Status)) {
+		Print(L"Failed to find partition start: %r\n", Status);
+		PartitionStart = 0;		// Default to 0 if no partition found
+	}
+
+	// Get the VTOC structure.
+	Status = ReadVtoc(&Vtoc, BlockIo, PartitionStart);
+	if (EFI_ERROR(Status))
+		Print(L"Warning: VTOC not found on boot volume.\n");
 
 	// Get filesystem type and open the device.
 	Status = uefi_call_wrapper(SystemTable->BootServices->HandleProtocol,
@@ -132,4 +163,49 @@ efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
 	}
 
 	return EFI_SUCCESS;
+}
+
+EFI_STATUS
+FindPartitionStart(EFI_BLOCK_IO_PROTOCOL *BlockIo, UINT32 *PartitionStart)
+{
+	EFI_STATUS Status;
+	UINTN BlockSize = BlockIo->Media->BlockSize;
+	UINT8 *MbrBuffer;
+	struct mbr_partition *Partitions;
+
+	Status = uefi_call_wrapper(BS->AllocatePool, 3, EfiLoaderData, BlockSize, (void**)&MbrBuffer);
+	if (EFI_ERROR(Status)) {
+		Print(L"Failed to allocate memory for MBR: %r\n", Status);
+		return Status;
+	}
+
+	Status = uefi_call_wrapper(BlockIo->ReadBlocks, 5, BlockIo,
+		BlockIo->Media->MediaId, 0, BlockSize, MbrBuffer);
+	if (EFI_ERROR(Status)) {
+		Print(L"Failed to read MBR: %r\n", Status);
+		FreePool(MbrBuffer);
+		return Status;
+	}
+
+	// Check for valid MBR signature.
+	if (MbrBuffer[510] != 0x55 || MbrBuffer[511] != 0xAA) {
+		Print(L"Invalid MBR signature.\n");
+		FreePool(MbrBuffer);
+		return EFI_NOT_FOUND;
+	}
+
+	Partitions = (struct mbr_partition *)(MbrBuffer + 0x1BE);
+
+	for (int i = 0; i < 4; i++) {
+		if (Partitions[i].os_type == 0x63) {
+			*PartitionStart = Partitions[i].starting_lba;
+			Print(L"Found SysV partition at LBA %u\n", *PartitionStart);
+			FreePool(MbrBuffer);
+			return EFI_SUCCESS;
+		}
+	}
+
+	Print(L"No System V partition found in MBR\n");
+	FreePool(MbrBuffer);
+	return EFI_NOT_FOUND;
 }

@@ -82,43 +82,100 @@ void
 ls(CHAR16 *args)
 {
 	EFI_STATUS Status;
+	EFI_BLOCK_IO_PROTOCOL *BlockIo = NULL;
 	EFI_SIMPLE_FILE_SYSTEM_PROTOCOL *SimpleFileSystem;
 	EFI_FILE_PROTOCOL *Root = NULL;
 	EFI_FILE_PROTOCOL *Dir = NULL;
 	EFI_FILE_INFO *FileInfo = NULL;
 	UINTN BufferSize;
 	CHAR16 *Path = NULL;
+	UINTN DriveIndex = 0;
+	EFI_HANDLE *HandleBuffer;
+	UINTN HandleCount;
+	UINT32 PartitionStart;
+	struct svr4_vtoc *Vtoc;
 
-	Status = uefi_call_wrapper(BS->HandleProtocol, 3, gImageHandle,
-		&LoadedImageProtocol, (void **)&LoadedImage);
+	if (args && StrLen(args) > 2 && args[1] == L':' && args[2] == L'\\') {
+		DriveIndex = args[0] - L'0';
+		Path = &args[3];
+	} else {
+		Status = uefi_call_wrapper(BS->HandleProtocol, 3, gImageHandle, &LoadedImageProtocol, (void **)&LoadedImage);
+		if (EFI_ERROR(Status)) {
+			Print(L"Failed to get LoadedImage protocol: %r\n", Status);
+			return;
+		}
+
+		Status = uefi_call_wrapper(BS->HandleProtocol, 3, LoadedImage->DeviceHandle, &gEfiSimpleFileSystemProtocolGuid,
+			(void **)&SimpleFileSystem);
+
+		if (EFI_ERROR(Status)) {
+			Print(L"Failed to get SimpleFileSystem protocol: %r\n", Status);
+			return;
+		}
+
+		goto open_volume;
+	}
+
+	Status = uefi_call_wrapper(BS->LocateHandleBuffer, 5, ByProtocol, &BlockIoProtocol,
+		NULL, &HandleCount, &HandleBuffer);
 	if (EFI_ERROR(Status)) {
-		Print(L"Failed to get LoadedImage protocol: %r\n", Status);
+		Print(L"Failed to locate file system handles: %r\n", Status);
 		return;
 	}
 
-	Status = uefi_call_wrapper(BS->HandleProtocol, 3,
-		LoadedImage->DeviceHandle, &gEfiSimpleFileSystemProtocolGuid,
+	if (DriveIndex >= HandleCount) {
+		Print(L"Invalid drive index %u (only %u drive(s) are available)\n", DriveIndex, HandleCount);
+		FreePool(HandleBuffer);
+		return;
+	}
+
+	Status = uefi_call_wrapper(BS->HandleProtocol, 3, HandleBuffer[DriveIndex], &gEfiSimpleFileSystemProtocolGuid,
 		(void **)&SimpleFileSystem);
 
 	if (EFI_ERROR(Status)) {
-		Print(L"Failed to get SimpleFileSystem protocol: %r\n", Status);
+		Status = uefi_call_wrapper(BS->HandleProtocol, 3, HandleBuffer[DriveIndex], &BlockIoProtocol, (void **)&BlockIo);
+		if (EFI_ERROR(Status)) {
+			Print(L"Failed to get Block I/O protocol for drive %u: %r\n", DriveIndex, Status);
+			FreePool(HandleBuffer);
+			return;
+		}
+
+		Status = FindPartitionStart(BlockIo, &PartitionStart);
+		if (EFI_ERROR(Status)) {
+			Print(L"Failed to find partition start: %r\n", Status);
+			PartitionStart = 0;		// Default to 0 if no partition found
+		}
+
+		Status = ReadVtoc(&Vtoc, BlockIo, PartitionStart);
+		if (EFI_ERROR(Status)) {
+			Print(L"Warning: VTOC not found on drive %u.\n", DriveIndex);
+			Vtoc = 0;
+		} else {
+			Print(L"VTOC found. Using partition 0 start LBA.\n");
+			PartitionStart = Vtoc->v_part[0].p_start;
+		}
+	}
+
+	Status = uefi_call_wrapper(BS->HandleProtocol, 3, HandleBuffer[DriveIndex], &gEfiSimpleFileSystemProtocolGuid,
+		(void **)&SimpleFileSystem);
+	if (EFI_ERROR(Status)) {
+		Print(L"Failed to get SimpleFileSystem protocol for drive %u: %r\n", DriveIndex, Status);
+		FreePool(HandleBuffer);
 		return;
 	}
 
-	Status = uefi_call_wrapper(SimpleFileSystem->OpenVolume, 2,
-		SimpleFileSystem, &Root);
+open_volume:
+	Status = uefi_call_wrapper(SimpleFileSystem->OpenVolume, 2, SimpleFileSystem, &Root);
 	if (EFI_ERROR(Status)) {
 		Print(L"Failed to open volume: %r\n", Status);
+		FreePool(HandleBuffer);
 		return;
 	}
 
-	if (args == NULL || StrLen(args) == 0)
-		Path = L".";
-	else
-		Path = args;
+	if (!Path || StrLen(Path) == 0)
+		Path = L"\\";
 
-	Status = uefi_call_wrapper(Root->Open, 5, Root, &Dir, Path,
-		EFI_FILE_MODE_READ, 0);
+	Status = uefi_call_wrapper(Root->Open, 5, Root, &Dir, Path, EFI_FILE_MODE_READ, 0);
 	if (EFI_ERROR(Status)) {
 		Print(L"Failed to open directory '%s': %r\n", Path, Status);
 		goto cleanup;
@@ -126,82 +183,83 @@ ls(CHAR16 *args)
 
 	BufferSize = SIZE_OF_EFI_FILE_INFO + 512;
 	FileInfo = AllocatePool(BufferSize);
-	if (FileInfo == NULL) {
+
+	if (!FileInfo) {
 		Print(L"Failed to allocate memory to list directory\n");
 		goto cleanup;
 	}
 
-	Status = uefi_call_wrapper(Dir->Read, 3, Dir, &BufferSize, FileInfo);
-	if (EFI_ERROR(Status)) {
-		Print(L"Failed to read from '%s': %r\n", Path, Status);
-		goto cleanup;
-	}
-
-	if (!(FileInfo->Attribute & EFI_FILE_DIRECTORY)) {
-		Print(L"<FILE>  %s  %ld bytes\n", Path, FileInfo->FileSize);
-		goto cleanup;
-	}
-
 	Print(L"Listing directory: %s\n", Path);
-
 	uefi_call_wrapper(Dir->SetPosition, 2, Dir, 0);
 
 	while (TRUE) {
 		BufferSize = SIZE_OF_EFI_FILE_INFO + 512;
 		Status = uefi_call_wrapper(Dir->Read, 3, Dir, &BufferSize, FileInfo);
-
-
 		if (EFI_ERROR(Status) || BufferSize == 0)
 			break;
-
 		if (StrCmp(FileInfo->FileName, L".") == 0 || StrCmp(FileInfo->FileName, L"..") == 0)
 			continue;
-
 		if (FileInfo->Attribute & EFI_FILE_DIRECTORY)
 			Print(L"  <DIR>  %s\n", FileInfo->FileName);
 		else
 			Print(L" <FILE>  %s  %ld bytes\n", FileInfo->FileName, FileInfo->FileSize);
 	}
-
+		
 cleanup:
-	if (Dir != NULL) {
-		while (TRUE) {
-			BufferSize = 0;
-			Status = uefi_call_wrapper(Dir->Read, 3, Dir, &BufferSize, NULL);
-			if (Status == EFI_BUFFER_TOO_SMALL) {
-				if (FileInfo != NULL) {
-					FreePool(FileInfo);
-					FileInfo = NULL;
-				}
-				FileInfo = AllocatePool(BufferSize);
-				if (FileInfo == NULL) {
-					Print(L"Failed to allocate buffer for draining\n");
-					break;
-				}
-
-				Status = uefi_call_wrapper(Dir->Read, 3, Dir, &BufferSize, FileInfo);
-				if (EFI_ERROR(Status) || BufferSize == 0)
-					break;
-			} else if (EFI_ERROR(Status) || BufferSize == 0)
-				break;
-		}
-
-		if (Dir->Close != NULL) {
-			Status = uefi_call_wrapper(Dir->Close, 1, Dir);
-			if (EFI_ERROR(Status))
-				Print(L"Warning: Failed to close directory pointer: %r\n", Status);
-		}
-
-		Dir = NULL;
-	}
-
-	if (FileInfo != NULL) {
+	if (FileInfo)
 		FreePool(FileInfo);
-		FileInfo = NULL;
+
+	if (Dir)
+		uefi_call_wrapper(Dir->Close, 1, Dir);
+
+	if (Root && Root != Dir)
+		Root = NULL;
+
+	if (HandleBuffer)
+		FreePool(HandleBuffer);
+
+	if (Vtoc)
+		FreePool(Vtoc);
+}
+
+void
+lsblk(CHAR16 *args)
+{
+	EFI_STATUS Status;
+	EFI_HANDLE *HandleBuffer = NULL;
+	UINTN HandleCount = 0;
+	EFI_BLOCK_IO_PROTOCOL *BlockIo = NULL;
+	EFI_DEVICE_PATH_PROTOCOL *DevicePath = NULL;
+	EFI_GUID BlockIoProtocol = EFI_BLOCK_IO_PROTOCOL_GUID;
+
+	Status = LibLocateHandle(ByProtocol, &BlockIoProtocol, NULL, &HandleCount, &HandleBuffer);
+	if (EFI_ERROR(Status)) {
+		Print(L"Failed to locate block I/O handles: %r\n", Status);
+		return;
 	}
 
-	if (Root != NULL && Root != Dir)
-		Root = NULL;
+	Print(L"Block devices found: %d\n", HandleCount);
+	for (UINTN i = 0; i < HandleCount; i++) {
+		Status = uefi_call_wrapper(BS->HandleProtocol, 3, HandleBuffer[i], &BlockIoProtocol, (void**)&BlockIo);
+		if (EFI_ERROR(Status)) {
+			Print(L"Failed to get Block I/O protocol for handle %d: %r\n", i, Status);
+			continue;
+		}
+
+		Status = uefi_call_wrapper(BS->HandleProtocol, 3, HandleBuffer[i], &gEfiDevicePathProtocolGuid,
+			(void **)&DevicePath);
+		if (EFI_ERROR(Status))
+			DevicePath = NULL;
+		Print(L"[%u]: %llu MB %s %s\n", i, (BlockIo->Media->LastBlock + 1) * BlockIo->Media->BlockSize / (1024 * 1024),
+			BlockIo->Media->RemovableMedia ? L"(Removable)" : L"(Fixed)", BlockIo->Media->LogicalPartition ? L"(Partition)" : L"(Whole Disk)");
+		if (DevicePath) {
+			CHAR16 *PathStr = DevicePathToStr(DevicePath);
+			Print(L"    Path: %s\n", PathStr);
+			FreePool(PathStr);
+		}
+	}
+
+	uefi_call_wrapper(BS->FreePool, 1, HandleBuffer);
 }
 
 void

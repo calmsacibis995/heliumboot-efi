@@ -2,5 +2,9 @@
     "C_Cpp.default.includePath": [
         "${default}",
         "${env:HOME}/gnu-efi/inc"
-    ]
+    ],
+    "files.associations": {
+        "boot.h": "c",
+        "vtoc.h": "c"
+    }
 }

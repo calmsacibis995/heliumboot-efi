@@ -94,6 +94,17 @@ x86_64_build: prep_build
 		-fshort-wchar \
 		-mno-red-zone \
 		-maccumulate-outgoing-args \
+		-c vtoc.c -o x86_64/vtoc.o
+
+	gcc \
+		-I$(HOME)/gnu-efi/inc \
+		-fpic \
+		-ffreestanding \
+		-fno-stack-protector \
+		-fno-stack-check \
+		-fshort-wchar \
+		-mno-red-zone \
+		-maccumulate-outgoing-args \
 		-c x86_64/vers.c -o x86_64/vers.o
 
 	ld \
@@ -108,6 +119,7 @@ x86_64_build: prep_build
 		x86_64/cmd_table.o \
 		x86_64/boot.o \
 		x86_64/video.o \
+		x86_64/vtoc.o \
 		x86_64/vers.o \
 		-o x86_64/boot.so \
 		-lgnuefi -lefi
@@ -208,6 +220,15 @@ aarch64_build: prep_build
 		-fno-stack-protector \
 		-fno-stack-check \
 		-fshort-wchar \
+		-c vtoc.c -o aarch64/vtoc.o
+
+	$(AARCH64_CC) \
+		-I$(HOME)/gnu-efi/inc \
+		-fpic \
+		-ffreestanding \
+		-fno-stack-protector \
+		-fno-stack-check \
+		-fshort-wchar \
 		-c aarch64/vers.c -o aarch64/vers.o
 
 	$(AARCH64_LD) \
@@ -223,6 +244,7 @@ aarch64_build: prep_build
 		aarch64/cmd_table.o \
 		aarch64/boot.o \
 		aarch64/video.o \
+		aarch64/vtoc.o \
 		aarch64/vers.o \
 		-o aarch64/boot.so \
 		-lgnuefi -lefi
