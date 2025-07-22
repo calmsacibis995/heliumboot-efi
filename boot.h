@@ -39,6 +39,7 @@ extern EFI_STATUS LoadFile(CHAR16 *args);
 extern EFI_STATUS LoadFileEFI(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable, CHAR16 *args);
 
 // commands.c
+extern void about(CHAR16 *args);
 extern void boot(CHAR16 *args);
 extern void boot_efi(CHAR16 *args);
 extern void cls(CHAR16 *args);

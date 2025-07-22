@@ -4,6 +4,20 @@
 #include "boot.h"
 
 void
+about(CHAR16 *args)
+{
+	Print(L"HeliumBoot/EFI - The HeliumOS boot loader\n");
+	Print(L"Copyright (c) 2025 Stefanos Stefanidis.\n");
+	Print(L"All rights reserved.\n");
+	Print(L"Version %s\n", getbuildno());
+	Print(L"Internal revision %s, %s\n", getrevision(), getrevdate());
+}
+
+/*
+ * Boot an exeutable file. Does not support EFI applications; see boot_efi().
+ * Not fully implemented yet.
+ */
+void
 boot(CHAR16 *args)
 {
 	EFI_STATUS Status;
