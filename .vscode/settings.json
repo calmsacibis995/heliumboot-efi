@@ -1,0 +1,6 @@
+{
+    "C_Cpp.default.includePath": [
+        "${default}",
+        "${env:HOME}/gnu-efi/inc"
+    ]
+}
