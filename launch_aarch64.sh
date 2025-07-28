@@ -6,7 +6,6 @@ qemu-system-aarch64 -M virt \
 	-drive if=pflash,format=raw,file=$HOME/efi.img,readonly=on \
 	-drive if=pflash,format=raw,file=$HOME/varstore.img \
 	-drive if=virtio,format=raw,file=fat.img \
-	-drive if=virtio,format=raw,file=$HOME/svr4.img \
 	-device virtio-scsi-pci,id=scsi0 \
 	-object rng-random,filename=/dev/urandom,id=rng0 \
 	-device virtio-rng-pci,rng=rng0 \
