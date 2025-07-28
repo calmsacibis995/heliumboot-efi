@@ -1,7 +1,8 @@
 {
     "C_Cpp.default.includePath": [
         "${default}",
-        "${workspaceFolder}/gnu-efi/inc"
+        "${workspaceFolder}/gnu-efi/inc",
+        "${workspaceFolder}/include"
     ],
     "files.associations": {
         "boot.h": "c",
