@@ -105,6 +105,17 @@ x86_64_build: prep_build
 		-fshort-wchar \
 		-mno-red-zone \
 		-maccumulate-outgoing-args \
+		-c helpers.c -o x86_64/helpers.o
+
+	gcc \
+		-I$(HOME)/gnu-efi/inc \
+		-fpic \
+		-ffreestanding \
+		-fno-stack-protector \
+		-fno-stack-check \
+		-fshort-wchar \
+		-mno-red-zone \
+		-maccumulate-outgoing-args \
 		-c x86_64/vers.c -o x86_64/vers.o
 
 	ld \
@@ -120,6 +131,7 @@ x86_64_build: prep_build
 		x86_64/boot.o \
 		x86_64/video.o \
 		x86_64/vtoc.o \
+		x86_64/helpers.o \
 		x86_64/vers.o \
 		-o x86_64/boot.so \
 		-lgnuefi -lefi
@@ -229,6 +241,15 @@ aarch64_build: prep_build
 		-fno-stack-protector \
 		-fno-stack-check \
 		-fshort-wchar \
+		-c helpers.c -o aarch64/helpers.o
+
+	$(AARCH64_CC) \
+		-I$(HOME)/gnu-efi/inc \
+		-fpic \
+		-ffreestanding \
+		-fno-stack-protector \
+		-fno-stack-check \
+		-fshort-wchar \
 		-c aarch64/vers.c -o aarch64/vers.o
 
 	$(AARCH64_LD) \
@@ -245,6 +266,7 @@ aarch64_build: prep_build
 		aarch64/boot.o \
 		aarch64/video.o \
 		aarch64/vtoc.o \
+		aarch64/helpers.o \
 		aarch64/vers.o \
 		-o aarch64/boot.so \
 		-lgnuefi -lefi
@@ -267,7 +289,22 @@ aarch64_build: prep_build
 
 	mcopy -i fat.img aarch64/boot.efi ::/EFI/BOOT/BOOTAA64.EFI
 
+iso_prep:
+	@rm -rf iso_root
+	@mkdir -p iso_root/EFI/BOOT
+	@cp x86_64/boot.efi iso_root/EFI/BOOT/BOOTX64.EFI
+	@cp aarch64/boot.efi iso_root/EFI/BOOT/BOOTAA64.EFI
+
+heliumboot.iso: iso_prep
+	xorriso -as mkisofs \
+		-no-emul-boot \
+		-iso-level 3 \
+		-full-iso9660-filenames \
+		-volid "HELIUM_BOOT" \
+		-output heliumboot.iso \
+		iso_root
+
 clean:
-	rm -rf ia32 x86_64 arm aarch64 fat.img heliumboot.iso
+	rm -rf ia32 x86_64 arm aarch64 fat.img heliumboot.iso iso_root
 
 .PHONY: all mkdisk ia32_build x86_64_build arm_build

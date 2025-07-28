@@ -6,3 +6,5 @@ aarch64
 *.o
 *.so
 fat.img
+iso_root
+heliumboot.iso

@@ -1,7 +1,13 @@
+/*
+ * Copyright (c) 2025 Stefanos Stefanidis.
+ * All rights reserved.
+ */
+
 #include <efi.h>
 #include <efilib.h>
 
 #include "boot.h"
+#include "s5fs.h"
 
 void
 about(CHAR16 *args)
@@ -14,8 +20,7 @@ about(CHAR16 *args)
 }
 
 /*
- * Boot an exeutable file. Does not support EFI applications; see boot_efi().
- * Not fully implemented yet.
+ * Boot an exeutable file. Not implemented yet.
  */
 void
 boot(CHAR16 *args)
@@ -27,6 +32,9 @@ boot(CHAR16 *args)
 		Print(L"boot: Failed to boot file (%r)\n", Status);
 }
 
+/*
+ * Boot an EFI executable file.
+ */
 void
 boot_efi(CHAR16 *args)
 {
@@ -83,19 +91,48 @@ ls(CHAR16 *args)
 {
 	EFI_STATUS Status;
 	EFI_BLOCK_IO_PROTOCOL *BlockIo = NULL;
-	EFI_SIMPLE_FILE_SYSTEM_PROTOCOL *SimpleFileSystem;
+	EFI_SIMPLE_FILE_SYSTEM_PROTOCOL *SimpleFileSystem = NULL;
+	EFI_LOADED_IMAGE *LoadedImage;
 	EFI_FILE_PROTOCOL *Root = NULL;
 	EFI_FILE_PROTOCOL *Dir = NULL;
 	EFI_FILE_INFO *FileInfo = NULL;
 	UINTN BufferSize;
 	CHAR16 *Path = NULL;
-	UINTN DriveIndex = 0;
-	EFI_HANDLE *HandleBuffer;
+	UINTN DriveIndex = 0, SliceIndex = 0;
+	EFI_HANDLE *HandleBuffer = NULL;
 	UINTN HandleCount;
-	UINT32 PartitionStart;
-	struct svr4_vtoc *Vtoc;
+	UINT32 PartitionStart = 0;
+	struct svr4_vtoc *Vtoc = NULL;
+	struct s5_superblock *sb;
+	UINT32 SliceLBA;
 
-	if (args && StrLen(args) > 2 && args[1] == L':' && args[2] == L'\\') {
+	if (args && StrnCmp(args, L"sd(", 3) == 0) {
+		CHAR16 *p = args + 3;
+		UINTN X = 0, Y = 0;
+
+		while (*p >= L'0' && *p <= L'9')
+			X = X * 10 + (*p++ - L'0');
+
+		if (*p == L',' || *p == L' ')
+			p++;
+
+		while (*p >= L'0' && *p <= L'9')
+			Y = Y * 10 + (*p++ - L'0');
+
+		if (*p != L')') {
+			Print(L"Invalid sd(X,Y) format\n");
+			return;
+		}
+
+		p++;
+		DriveIndex = X;
+		SliceIndex = Y;
+
+		if (*p == L':' && *(p+1) == L'\\')
+			Path = p + 2;
+		else
+			Path = L"\\";
+	} else if (args && StrLen(args) > 2 && args[1] == L':' && args[2] == L'\\') {
 		DriveIndex = args[0] - L'0';
 		Path = &args[3];
 	} else {
@@ -107,7 +144,6 @@ ls(CHAR16 *args)
 
 		Status = uefi_call_wrapper(BS->HandleProtocol, 3, LoadedImage->DeviceHandle, &gEfiSimpleFileSystemProtocolGuid,
 			(void **)&SimpleFileSystem);
-
 		if (EFI_ERROR(Status)) {
 			Print(L"Failed to get SimpleFileSystem protocol: %r\n", Status);
 			return;
@@ -116,60 +152,54 @@ ls(CHAR16 *args)
 		goto open_volume;
 	}
 
-	Status = uefi_call_wrapper(BS->LocateHandleBuffer, 5, ByProtocol, &BlockIoProtocol,
-		NULL, &HandleCount, &HandleBuffer);
+	Status = uefi_call_wrapper(BS->LocateHandleBuffer, 5, ByProtocol, &BlockIoProtocol, NULL, &HandleCount, &HandleBuffer);
 	if (EFI_ERROR(Status)) {
-		Print(L"Failed to locate file system handles: %r\n", Status);
+		Print(L"Failed to locate block IO handles: %r\n", Status);
 		return;
 	}
 
 	if (DriveIndex >= HandleCount) {
-		Print(L"Invalid drive index %u (only %u drive(s) are available)\n", DriveIndex, HandleCount);
-		FreePool(HandleBuffer);
-		return;
+		Print(L"Invalid drive index %u, max index is %u\n", DriveIndex, HandleCount - 1);
+		goto cleanup;
 	}
 
-	Status = uefi_call_wrapper(BS->HandleProtocol, 3, HandleBuffer[DriveIndex], &gEfiSimpleFileSystemProtocolGuid,
-		(void **)&SimpleFileSystem);
-
+	Status = uefi_call_wrapper(BS->HandleProtocol, 3, HandleBuffer[DriveIndex], &BlockIoProtocol, (void **)&BlockIo);
 	if (EFI_ERROR(Status)) {
-		Status = uefi_call_wrapper(BS->HandleProtocol, 3, HandleBuffer[DriveIndex], &BlockIoProtocol, (void **)&BlockIo);
-		if (EFI_ERROR(Status)) {
-			Print(L"Failed to get Block I/O protocol for drive %u: %r\n", DriveIndex, Status);
-			FreePool(HandleBuffer);
-			return;
-		}
+		Print(L"Failed to get Block I/O protocol: %r\n", Status);
+		goto cleanup;
+	}
 
-		Status = FindPartitionStart(BlockIo, &PartitionStart);
-		if (EFI_ERROR(Status)) {
-			Print(L"Failed to find partition start: %r\n", Status);
-			PartitionStart = 0;		// Default to 0 if no partition found
-		}
+	Status = FindPartitionStart(BlockIo, &PartitionStart);
+	if (EFI_ERROR(Status)) {
+		Print(L"Error: Cannot find partition start: %r\n", Status);
+		goto cleanup;
+	}
 
-		Status = ReadVtoc(&Vtoc, BlockIo, PartitionStart);
-		if (EFI_ERROR(Status)) {
-			Print(L"Warning: VTOC not found on drive %u.\n", DriveIndex);
-			Vtoc = 0;
+	Status = ReadVtoc(Vtoc, BlockIo, PartitionStart);
+	if (!EFI_ERROR(Status)) {
+		if (SliceIndex < Vtoc->v_nparts) {
+			SliceLBA = Vtoc->v_part[SliceIndex].p_start;
+			Print(L"VTOC slice %u start LBA: %u\n", SliceIndex, SliceLBA);
 		} else {
-			Print(L"VTOC found. Using partition 0 start LBA.\n");
-			PartitionStart = Vtoc->v_part[0].p_start;
+			Print(L"Invalid slice index %u\n", SliceIndex);
+			goto cleanup;
 		}
+	} else {
+		Print(L"Failed to open VTOC: %r\n", Status);
+		goto cleanup;
 	}
 
-	Status = uefi_call_wrapper(BS->HandleProtocol, 3, HandleBuffer[DriveIndex], &gEfiSimpleFileSystemProtocolGuid,
-		(void **)&SimpleFileSystem);
+	Status = DetectS5(BlockIo, SliceLBA, sb);
 	if (EFI_ERROR(Status)) {
-		Print(L"Failed to get SimpleFileSystem protocol for drive %u: %r\n", DriveIndex, Status);
-		FreePool(HandleBuffer);
-		return;
+		Print(L"Could not read s5 filesystem: %r\n", Status);
+		goto cleanup;
 	}
 
 open_volume:
 	Status = uefi_call_wrapper(SimpleFileSystem->OpenVolume, 2, SimpleFileSystem, &Root);
 	if (EFI_ERROR(Status)) {
 		Print(L"Failed to open volume: %r\n", Status);
-		FreePool(HandleBuffer);
-		return;
+		goto cleanup;
 	}
 
 	if (!Path || StrLen(Path) == 0)
@@ -183,7 +213,6 @@ open_volume:
 
 	BufferSize = SIZE_OF_EFI_FILE_INFO + 512;
 	FileInfo = AllocatePool(BufferSize);
-
 	if (!FileInfo) {
 		Print(L"Failed to allocate memory to list directory\n");
 		goto cleanup;
@@ -204,16 +233,13 @@ open_volume:
 		else
 			Print(L" <FILE>  %s  %ld bytes\n", FileInfo->FileName, FileInfo->FileSize);
 	}
-		
+
 cleanup:
 	if (FileInfo)
 		FreePool(FileInfo);
 
 	if (Dir)
 		uefi_call_wrapper(Dir->Close, 1, Dir);
-
-	if (Root && Root != Dir)
-		Root = NULL;
 
 	if (HandleBuffer)
 		FreePool(HandleBuffer);

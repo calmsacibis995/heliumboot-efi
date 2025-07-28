@@ -32,11 +32,15 @@ extern const CHAR16 *getbuildno(void);
 // boot.c
 extern CHAR16 filepath[100];
 extern EFI_FILE_HANDLE RootFS, File;
-extern EFI_LOADED_IMAGE *LoadedImage;
 extern BOOLEAN exit_flag;
 extern EFI_HANDLE gImageHandle;
 
+// helpers.c
+extern UINTN StrDecimalToUintn(CHAR16 *str);
+extern EFI_STATUS MountAtLba(EFI_BLOCK_IO_PROTOCOL *ParentBlockIo, EFI_LBA StartLba, EFI_SIMPLE_FILE_SYSTEM_PROTOCOL **FileSystem);
 extern EFI_STATUS FindPartitionStart(EFI_BLOCK_IO_PROTOCOL *BlockIo, UINT32 *PartitionStart);
+extern UINT32 SwapBytes32(UINT32 val);
+extern UINT16 SwapBytes16(UINT16 val);
 
 // loadfile.c
 extern EFI_STATUS LoadFile(CHAR16 *args);
@@ -63,6 +67,6 @@ extern struct boot_command_tab cmd_tab[];
 extern void InitVideo(void);
 
 // vtoc.c
-EFI_STATUS ReadVtoc(struct svr4_vtoc **OutVtoc, EFI_BLOCK_IO_PROTOCOL *BlockIo, UINT32 PartitionStart);
+EFI_STATUS ReadVtoc(struct svr4_vtoc *OutVtoc, EFI_BLOCK_IO_PROTOCOL *BlockIo, UINT32 PartitionStart);
 
 #endif /* _BOOT_H_ */

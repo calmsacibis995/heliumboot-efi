@@ -11,6 +11,7 @@ EFI_STATUS
 LoadFile(CHAR16 *args)
 {
 	EFI_STATUS Status;
+	EFI_LOADED_IMAGE *LoadedImage;
 	EFI_SIMPLE_FILE_SYSTEM_PROTOCOL *SimpleFS;
 	EFI_FILE_PROTOCOL *Root = NULL;
 	EFI_FILE_PROTOCOL *File = NULL;
@@ -18,6 +19,13 @@ LoadFile(CHAR16 *args)
 	UINTN FileInfoSize;
 	VOID *Buffer = NULL;
 	UINTN BufferSize;
+
+	Status = uefi_call_wrapper(gST->BootServices->HandleProtocol,
+		3, gImageHandle, &LoadedImageProtocol, (void**)&LoadedImage);
+	if (EFI_ERROR(Status)) {
+		Print(L"Could not get loaded image protocol\n");
+		return Status;
+	}
 
 	Status = gBS->HandleProtocol(gImageHandle,
 		&gEfiSimpleFileSystemProtocolGuid, (void **)&SimpleFS);
@@ -95,6 +103,14 @@ LoadFileEFI(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable, CHAR16 *path)
 	EFI_STATUS Status;
 	EFI_HANDLE KernelImage;
 	EFI_DEVICE_PATH *FilePath;		// EFI file path
+	EFI_LOADED_IMAGE *LoadedImage;
+
+	Status = uefi_call_wrapper(gST->BootServices->HandleProtocol,
+		3, gImageHandle, &LoadedImageProtocol, (void**)&LoadedImage);
+	if (EFI_ERROR(Status)) {
+		Print(L"Could not get loaded image protocol\n");
+		return Status;
+	}
 
 	// Open the file.
 	Status = uefi_call_wrapper(RootFS->Open, 5, RootFS, &File, path, EFI_FILE_MODE_READ, 0);

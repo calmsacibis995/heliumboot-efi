@@ -13,6 +13,8 @@
 #define ALT_SANITY      0xdeadbeef  /* magic # to validate alt table */
 #define ALT_VERSION     0x02		/* version of table */
 
+#define VALID_PD		0xCA5E600D
+
 #define MAX_ALTENTS     253     /* Maximum # of slots for alts allowed for in the table. */
 
 struct svr4_partition {
@@ -35,7 +37,7 @@ struct svr4_vtoc {
     UINT32 v_reserved[10];  /* reserved */
     struct svr4_partition v_part[V_NUMPAR]; /* partition table */
     INT32 timestamp[V_NUMPAR]; /* partition timestamp */
-};
+} __attribute__((packed));
 
 /*
  * pdinfo structure.
@@ -57,6 +59,7 @@ struct svr4_pdinfo {
     UINT32 mfgsz;       /* manufacturing size */
     UINT32 defectst;    /* defect list start sector */
     UINT32 defectsz;    /* defect list size */
+    UINT32 relno;       /* number of relocation areas */
     UINT32 relst;       /* reserved list start sector */
     UINT32 relsz;       /* reserved list size */
     UINT32 relnext;     /* reserved list next sector */
@@ -65,7 +68,8 @@ struct svr4_pdinfo {
     UINT16 vtoc_pad;    /* VTOC padding */
     UINT32 alt_ptr;     /* alternate VTOC pointer */
     UINT16 alt_len;     /* alternate VTOC length */
-};
+    UINT16 alt_pad;     /* alternate VTOC padding */
+} __attribute__((packed));
 
 struct svr4_alt_table {
     UINT16 alt_used;        /* number of used alternate sectors */
