@@ -46,7 +46,6 @@ extern const CHAR16 *getbuildno(void);
 
 // boot.c
 extern CHAR16 filepath[100];
-extern EFI_FILE_HANDLE RootFS, File;
 extern BOOLEAN exit_flag;
 extern EFI_HANDLE gImageHandle;
 

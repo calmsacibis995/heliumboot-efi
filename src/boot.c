@@ -28,7 +28,6 @@
 CHAR16 filepath[100] = {0};			// bootloader file path
 UINTN bufsize = sizeof(filepath);
 
-EFI_FILE_HANDLE RootFS, File;
 BOOLEAN exit_flag = FALSE;
 EFI_HANDLE gImageHandle = NULL;
 
@@ -69,10 +68,12 @@ efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
 	UINTN HandleCount;
 	EFI_HANDLE *HandleBuffer;
 	EFI_BLOCK_IO_PROTOCOL *BlockIo;
+	EFI_FILE_HANDLE RootFS;
 
 	InitializeLib(ImageHandle, SystemTable);
 	gImageHandle = ImageHandle;
 
+	// Initialize video output.
 	InitVideo();
 
 	// Get info about our loaded image.
