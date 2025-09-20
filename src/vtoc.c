@@ -30,7 +30,6 @@ ReadVtoc(struct svr4_vtoc *OutVtoc, EFI_BLOCK_IO_PROTOCOL *BlockIo, UINT32 Parti
     EFI_STATUS Status;
     EFI_BLOCK_IO_MEDIA *Media;
     void *Buffer = NULL;
-    EFI_LBA VtocLba;
     UINTN BlockSize;
     EFI_LBA PdinfoLba = PartitionStart + VTOC_SEC;
 
@@ -78,7 +77,7 @@ ReadVtoc(struct svr4_vtoc *OutVtoc, EFI_BLOCK_IO_PROTOCOL *BlockIo, UINT32 Parti
 
     OutVtoc = AllocateZeroPool(sizeof(struct svr4_vtoc));
     if (!OutVtoc) {
-        Print(L"Out of memory allocating VTOC\n");
+        Print(L"Failed to allocate memory for VTOC\n");
         gBS->FreePool(Buffer);
         return EFI_OUT_OF_RESOURCES;
     }

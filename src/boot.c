@@ -60,11 +60,10 @@ efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
 	EFI_STATUS Status;
 	EFI_LOADED_IMAGE *LoadedImage;
 	EFI_FILE_IO_INTERFACE *FileSystem;
-	EFI_INPUT_KEY key;
 	BOOLEAN matched_command;
 	EFI_GUID LoadedImageProtocol = EFI_LOADED_IMAGE_PROTOCOL_GUID;
 	EFI_GUID FileSystemProtocol = EFI_SIMPLE_FILE_SYSTEM_PROTOCOL_GUID;
-	struct svr4_vtoc *Vtoc;
+	struct svr4_vtoc *Vtoc = NULL;
 	UINTN HandleCount;
 	EFI_HANDLE *HandleBuffer;
 	EFI_BLOCK_IO_PROTOCOL *BlockIo;
@@ -74,13 +73,17 @@ efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
 	gImageHandle = ImageHandle;
 
 	// Initialize video output.
-	InitVideo();
+	Status = InitVideo();
+	if (EFI_ERROR(Status)) {
+		Print(L"Failed to initialize video: %r\n", Status);
+		return Status;
+	}
 
 	// Get info about our loaded image.
 	Status = uefi_call_wrapper(SystemTable->BootServices->HandleProtocol,
 		3, ImageHandle, &LoadedImageProtocol, (void**)&LoadedImage);
 	if (EFI_ERROR(Status)) {
-		Print(L"Could not get loaded image protocol\n");
+		Print(L"Could not get loaded image protocol: %r\n", Status);
 		return Status;
 	}
 
@@ -127,18 +130,21 @@ efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
 	Status = uefi_call_wrapper(SystemTable->BootServices->HandleProtocol,
 		3, LoadedImage->DeviceHandle, &FileSystemProtocol, (void**)&FileSystem);
 	if (EFI_ERROR(Status)) {
-		Print(L"Could not get filesystem protocol\n");
+		Print(L"Could not get filesystem protocol: %r\n", Status);
 		return Status;
 	}
 
 	Status = uefi_call_wrapper(FileSystem->OpenVolume, 2, FileSystem, &RootFS);
 	if (EFI_ERROR(Status)) {
-		Print(L"Could not open root filesystem\n");
+		Print(L"Could not open root filesystem: %r\n", Status);
 		return Status;
 	}
 
+#if defined(DEBUG_BLD) || defined(DEV_BLD)
+	Print(L"\nKyasarin %s (commit %s)\n", getrevision(), getcommitno());
+#else
 	Print(L"\n%s\n", getversion());
-	Print(L"Commit %s\n", getcommitno());
+#endif
 
 	// HeliumBoot main loop.
 	for (;;) {

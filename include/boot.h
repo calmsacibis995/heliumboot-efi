@@ -58,7 +58,7 @@ extern UINT16 SwapBytes16(UINT16 val);
 
 // loadfile.c
 extern EFI_STATUS LoadFile(CHAR16 *args);
-extern EFI_STATUS LoadFileEFI(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable, CHAR16 *args);
+extern EFI_STATUS LoadFileEFI(CHAR16 *args);
 
 // commands.c
 extern void about(CHAR16 *args);
@@ -78,9 +78,9 @@ extern void print_version(CHAR16 *args);
 extern struct boot_command_tab cmd_tab[];
 
 // video.c
-extern void InitVideo(void);
+extern EFI_STATUS InitVideo(void);
 
 // vtoc.c
-EFI_STATUS ReadVtoc(struct svr4_vtoc *OutVtoc, EFI_BLOCK_IO_PROTOCOL *BlockIo, UINT32 PartitionStart);
+extern EFI_STATUS ReadVtoc(struct svr4_vtoc *OutVtoc, EFI_BLOCK_IO_PROTOCOL *BlockIo, UINT32 PartitionStart);
 
 #endif /* _BOOT_H_ */

@@ -33,7 +33,7 @@ LoadFile(CHAR16 *args)
 }
 
 EFI_STATUS
-LoadFileEFI(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable, CHAR16 *path)
+LoadFileEFI(CHAR16 *path)
 {
 	EFI_STATUS Status;
 	EFI_HANDLE KernelImage;
@@ -63,8 +63,8 @@ LoadFileEFI(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable, CHAR16 *path)
 	}
 
 	// Load the file.
-	Status = uefi_call_wrapper(SystemTable->BootServices->LoadImage,
-		6, FALSE, ImageHandle, FilePath, NULL, 0, &KernelImage);
+	Status = uefi_call_wrapper(gST->BootServices->LoadImage,
+		6, FALSE, gImageHandle, FilePath, NULL, 0, &KernelImage);
 	if (EFI_ERROR(Status)) {
 		Print(L"Failed to load image (%r)\n", Status);
 		FreePool(FilePath);
@@ -77,7 +77,7 @@ LoadFileEFI(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable, CHAR16 *path)
 	uefi_call_wrapper(File->Close, 1, File);
 
 	// Execute the file.
-	Status = uefi_call_wrapper(SystemTable->BootServices->StartImage,
+	Status = uefi_call_wrapper(gST->BootServices->StartImage,
 		3, KernelImage, NULL, NULL);
 	if (EFI_ERROR(Status)) {
 		Print(L"Failed to start kernel image\n");

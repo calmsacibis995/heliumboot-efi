@@ -23,14 +23,16 @@
 
 #include "boot.h"
 
-EFI_GRAPHICS_OUTPUT_PROTOCOL *gop = NULL;
-
-void
+EFI_STATUS
 InitVideo(void)
 {
 	EFI_STATUS Status;
 	EFI_GUID GraphicsOutputProtocolGuid = EFI_GRAPHICS_OUTPUT_PROTOCOL_GUID;
-	UINT32 ModeNumber = 12;		// Default resolution of 1280x768
+	UINT32 ModeNumber, BestMode;
+	UINTN InfoSize;
+	EFI_GRAPHICS_OUTPUT_PROTOCOL *gop = NULL;
+	EFI_GRAPHICS_OUTPUT_MODE_INFORMATION *Info;
+	UINT32 Res, MaxRes;
 
 	// Locate the GOP.
 	Status = uefi_call_wrapper(BS->LocateProtocol, 3,
@@ -38,23 +40,41 @@ InitVideo(void)
 	if (EFI_ERROR(Status)) {
 		Print(L"InitVideo: Failed to locate GOP: %r\n", Status);
 		gop = NULL;
-		return;
+		return Status;
+	}
+
+	// Find the best video mode.
+	for (ModeNumber = 0; ModeNumber < gop->Mode->MaxMode; ModeNumber++) {
+		Status = uefi_call_wrapper(gop->QueryMode, 4, gop, ModeNumber, &InfoSize, &Info);
+		if (!EFI_ERROR(Status)) {
+			Res = Info->HorizontalResolution * Info->VerticalResolution;
+			if (Res > MaxRes) {
+				MaxRes = Res;
+				BestMode = ModeNumber;
+			}
+		}
 	}
 
 	// Set the video mode.
-	Status = uefi_call_wrapper(gop->SetMode, ModeNumber, gop, 0);
+	Status = uefi_call_wrapper(gop->SetMode, BestMode, gop, 0);
 	if (EFI_ERROR(Status)) {
 		Print(L"Failed to set video mode: %r\n", Status);
-		return;
+		return Status;
 	}
 
 	// Reset console output.
 	Status = uefi_call_wrapper(ST->ConOut->Reset, 2, ST->ConOut, TRUE);
-	if (EFI_ERROR(Status))
+	if (EFI_ERROR(Status)) {
 		Print(L"Warning: Failed to reset console: %r\n", Status);
+		return Status;
+	}
 
 	// Clear the screen.
 	Status = uefi_call_wrapper(ST->ConOut->ClearScreen, 1, ST->ConOut);
-	if (EFI_ERROR(Status))
+	if (EFI_ERROR(Status)) {
 		Print(L"Failed to clear screen: %r\n", Status);
+		return Status;
+	}
+
+	return EFI_SUCCESS;
 }

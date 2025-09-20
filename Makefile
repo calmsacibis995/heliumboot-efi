@@ -8,9 +8,15 @@ EFI_INC_DIR = $(GNU_EFI_DIR)/inc
 X86_64_LIB_DIR = $(GNU_EFI_DIR)/x86_64
 AARCH64_LIB_DIR = $(GNU_EFI_DIR)/aarch64
 
-COMMON_CFLAGS = -Iinclude -I$(EFI_INC_DIR) -fpic -ffreestanding -fno-stack-protector -fno-stack-check
+COMMON_CFLAGS = -Iinclude -I$(EFI_INC_DIR) -fpic -ffreestanding -fno-stack-protector -fno-stack-check -Wall
 X86_64_CFLAGS = $(COMMON_CFLAGS) -fshort-wchar -mno-red-zone -maccumulate-outgoing-args
 AARCH64_CFLAGS = $(COMMON_CFLAGS) -fshort-wchar
+
+X86_64_DEBUG_CFLAGS = $(X86_64_CFLAGS) -DDEBUG_BLD
+AARCH64_DEBUG_CFLAGS = $(AARCH64_CFLAGS) -DDEBUG_BLD
+
+X86_64_DEV_CFLAGS = $(X86_64_CFLAGS) -DDEV_BLD
+AARCH64_DEV_CFLAGS = $(AARCH64_CFLAGS) -DDEV_BLD
 
 EFI_OBJCOPY_FLAGS = -j .text -j .sdata -j .data -j .rodata -j .dynamic -j .dynsym \
                     -j .rel -j .rela -j .rel.* -j .rela.* -j .reloc --subsystem=10
@@ -29,8 +35,15 @@ SOURCES =	src/commands.c \
 X86_64_OBJS = $(patsubst src/%.c,x86_64/%.o,$(SOURCES)) x86_64/vers.o
 AARCH64_OBJS = $(patsubst src/%.c,aarch64/%.o,$(SOURCES)) aarch64/vers.o
 
+X86_64_DEBUG_OBJS = $(patsubst src/%.c,x86_64/debug_%.o,$(SOURCES)) x86_64/vers.o
+AARCH64_DEBUG_OBJS = $(patsubst src/%.c,aarch64/debug_%.o,$(SOURCES)) aarch64/vers.o
+
+X86_64_DEV_OBJS = $(patsubst src/%.c,x86_64/dev_%.o,$(SOURCES)) x86_64/vers.o
+AARCH64_DEV_OBJS = $(patsubst src/%.c,aarch64/dev_%.o,$(SOURCES)) aarch64/vers.o
+
 all: sel_build
 
+# Object rules for normal builds
 x86_64/vers.o: x86_64/vers.c
 	$(CC) $(X86_64_CFLAGS) -c $< -o $@
 
@@ -49,6 +62,43 @@ x86_64/boot.so: $(X86_64_OBJS)
 aarch64/boot.so: $(AARCH64_OBJS)
 	$(call link_aarch64)
 
+x86_64/boot_debug.so: $(X86_64_DEBUG_OBJS)
+	$(call link_x86_64_debug)
+
+aarch64/boot_debug.so: $(AARCH64_DEBUG_OBJS)
+	$(call link_aarch64_debug)
+
+x86_64/boot_dev.so: $(X86_64_DEV_OBJS)
+	$(call link_x86_64_dev)
+
+aarch64/boot_dev.so: $(AARCH64_DEV_OBJS)
+	$(call link_aarch64_dev)
+
+# Object rules for debug/dev builds
+x86_64/debug_%.o: src/%.c
+	$(CC) $(X86_64_DEBUG_CFLAGS) -c $< -o $@
+
+aarch64/debug_%.o: src/%.c
+	$(AARCH64_CC) $(AARCH64_DEBUG_CFLAGS) -c $< -o $@
+
+x86_64/dev_%.o: src/%.c
+	$(CC) $(X86_64_DEV_CFLAGS) -c $< -o $@
+
+aarch64/dev_%.o: src/%.c
+	$(AARCH64_CC) $(AARCH64_DEV_CFLAGS) -c $< -o $@
+
+x86_64/boot_debug.efi: x86_64/boot_debug.so
+	objcopy $(EFI_OBJCOPY_FLAGS) --target efi-app-x86_64 $< $@
+
+aarch64/boot_debug.efi: aarch64/boot_debug.so
+	$(AARCH64_OBJCOPY) $(EFI_OBJCOPY_FLAGS) --target efi-app-aarch64 $< $@
+
+x86_64/boot_dev.efi: x86_64/boot_dev.so
+	objcopy $(EFI_OBJCOPY_FLAGS) --target efi-app-x86_64 $< $@
+
+aarch64/boot_dev.efi: aarch64/boot_dev.so
+	$(AARCH64_OBJCOPY) $(EFI_OBJCOPY_FLAGS) --target efi-app-aarch64 $< $@
+
 define link_x86_64
 ld -shared -Bsymbolic \
 	-L$(X86_64_LIB_DIR)/lib -L$(X86_64_LIB_DIR)/gnuefi \
@@ -63,6 +113,38 @@ $(AARCH64_LD) -shared -Bsymbolic -nostdlib \
 	-T$(AARCH64_LINK_SCRIPT) \
 	$(AARCH64_LIB_DIR)/gnuefi/crt0-efi-aarch64.o \
 	$(AARCH64_OBJS) -o aarch64/boot.so -lgnuefi -lefi
+endef
+
+define link_x86_64_dev
+ld -shared -Bsymbolic \
+	-L$(X86_64_LIB_DIR)/lib -L$(X86_64_LIB_DIR)/gnuefi \
+	-T$(X86_64_LINK_SCRIPT) \
+	$(X86_64_LIB_DIR)/gnuefi/crt0-efi-x86_64.o \
+	$(X86_64_DEV_OBJS) -o x86_64/boot_dev.so -lgnuefi -lefi
+endef
+
+define link_aarch64_dev
+$(AARCH64_LD) -shared -Bsymbolic -nostdlib \
+	-L$(AARCH64_LIB_DIR)/lib -L$(AARCH64_LIB_DIR)/gnuefi \
+	-T$(AARCH64_LINK_SCRIPT) \
+	$(AARCH64_LIB_DIR)/gnuefi/crt0-efi-aarch64.o \
+	$(AARCH64_DEV_OBJS) -o aarch64/boot_dev.so -lgnuefi -lefi
+endef
+
+define link_x86_64_debug
+ld -shared -Bsymbolic \
+	-L$(X86_64_LIB_DIR)/lib -L$(X86_64_LIB_DIR)/gnuefi \
+	-T$(X86_64_LINK_SCRIPT) \
+	$(X86_64_LIB_DIR)/gnuefi/crt0-efi-x86_64.o \
+	$(X86_64_DEBUG_OBJS) -o x86_64/boot_debug.so -lgnuefi -lefi
+endef
+
+define link_aarch64_debug
+$(AARCH64_LD) -shared -Bsymbolic -nostdlib \
+	-L$(AARCH64_LIB_DIR)/lib -L$(AARCH64_LIB_DIR)/gnuefi \
+	-T$(AARCH64_LINK_SCRIPT) \
+	$(AARCH64_LIB_DIR)/gnuefi/crt0-efi-aarch64.o \
+	$(AARCH64_DEBUG_OBJS) -o aarch64/boot_debug.so -lgnuefi -lefi
 endef
 
 x86_64/boot.efi: x86_64/boot.so
@@ -102,6 +184,22 @@ aarch64_build: prep_build x86_64/boot.efi
 	$(call link_aarch64)
 	mcopy -i fat.img aarch64/boot.efi ::/EFI/BOOT/BOOTAA64.EFI
 
+x86_64_debug_build: prep_build x86_64/boot_debug.efi
+	$(call link_x86_64_debug)
+	mcopy -i fat.img x86_64/boot_debug.efi ::/EFI/BOOT/BOOTX64.EFI
+
+aarch64_debug_build: prep_build aarch64/boot_debug.efi
+	$(call link_aarch64_debug)
+	mcopy -i fat.img aarch64/boot_debug.efi ::/EFI/BOOT/BOOTAA64.EFI
+
+x86_64_dev_build: prep_build x86_64/boot_dev.efi
+	$(call link_x86_64_dev)
+	mcopy -i fat.img x86_64/boot_dev.efi ::/EFI/BOOT/BOOTX64.EFI
+
+aarch64_dev_build: prep_build aarch64/boot_dev.efi
+	$(call link_aarch64_dev)
+	mcopy -i fat.img aarch64/boot_dev.efi ::/EFI/BOOT/BOOTAA64.EFI
+
 iso_prep:
 	@rm -rf iso_root
 	@mkdir -p iso_root/EFI/BOOT
@@ -120,4 +218,4 @@ heliumboot.iso: iso_prep
 clean:
 	rm -rf x86_64 aarch64 fat.img heliumboot.iso iso_root
 
-.PHONY: all sel_build prep_build x86_64_build aarch64_build iso_prep heliumboot.iso clean
+.PHONY: all sel_build prep_build x86_64_build aarch64_build x86_64_dev_build aarch64_dev_build x86_64_debug_build aarch64_debug_build iso_prep heliumboot.iso clean

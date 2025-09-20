@@ -57,7 +57,7 @@ boot_efi(CHAR16 *args)
 
 	Print(L"Booting EFI file: %s\n", args);
 
-	Status = LoadFileEFI(gImageHandle, gST, args);
+	Status = LoadFileEFI(args);
 	if (EFI_ERROR(Status))
 		Print(L"boot_efi: Failed to boot file (%r)\n", Status);
 }
@@ -118,7 +118,7 @@ ls(CHAR16 *args)
 	UINTN HandleCount;
 	UINT32 PartitionStart = 0;
 	struct svr4_vtoc *Vtoc = NULL;
-	struct s5_superblock *sb;
+	struct s5_superblock *sb = NULL;
 	UINT32 SliceLBA;
 
 	if (args && StrnCmp(args, L"sd(", 3) == 0) {
@@ -310,7 +310,7 @@ reboot(CHAR16 *args)
 
 	Status = uefi_call_wrapper(RT->ResetSystem, 4, EfiResetCold, EFI_SUCCESS, 0, NULL);
 	if (EFI_ERROR(Status))
-		Print(L"Reset failed\n");
+		Print(L"Reset failed: %r\n", Status);
 }
 
 void
