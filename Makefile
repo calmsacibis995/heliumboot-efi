@@ -35,11 +35,11 @@ SOURCES =	src/commands.c \
 X86_64_OBJS = $(patsubst src/%.c,x86_64/%.o,$(SOURCES)) x86_64/vers.o
 AARCH64_OBJS = $(patsubst src/%.c,aarch64/%.o,$(SOURCES)) aarch64/vers.o
 
-X86_64_DEBUG_OBJS = $(patsubst src/%.c,x86_64/debug_%.o,$(SOURCES)) x86_64/vers.o
-AARCH64_DEBUG_OBJS = $(patsubst src/%.c,aarch64/debug_%.o,$(SOURCES)) aarch64/vers.o
+X86_64_DEBUG_OBJS = $(patsubst src/%.c,x86_64/debug_%.o,$(SOURCES)) x86_64/debug_vers.o
+AARCH64_DEBUG_OBJS = $(patsubst src/%.c,aarch64/debug_%.o,$(SOURCES)) aarch64/debug_vers.o
 
-X86_64_DEV_OBJS = $(patsubst src/%.c,x86_64/dev_%.o,$(SOURCES)) x86_64/vers.o
-AARCH64_DEV_OBJS = $(patsubst src/%.c,aarch64/dev_%.o,$(SOURCES)) aarch64/vers.o
+X86_64_DEV_OBJS = $(patsubst src/%.c,x86_64/dev_%.o,$(SOURCES)) x86_64/dev_vers.o
+AARCH64_DEV_OBJS = $(patsubst src/%.c,aarch64/dev_%.o,$(SOURCES)) aarch64/dev_vers.o
 
 all: sel_build
 
@@ -61,6 +61,18 @@ x86_64/boot.so: $(X86_64_OBJS)
 
 aarch64/boot.so: $(AARCH64_OBJS)
 	$(call link_aarch64)
+
+x86_64/debug_vers.o: x86_64/vers.c
+	$(CC) $(X86_64_DEBUG_CFLAGS) -c $< -o $@
+
+aarch64/debug_vers.o: aarch64/vers.c
+	$(AARCH64_CC) $(AARCH64_DEBUG_CFLAGS) -c $< -o $@
+
+x86_64/dev_vers.o: x86_64/vers.c
+	$(CC) $(X86_64_DEV_CFLAGS) -c $< -o $@
+
+aarch64/dev_vers.o: aarch64/vers.c
+	$(AARCH64_CC) $(AARCH64_DEV_CFLAGS) -c $< -o $@
 
 x86_64/boot_debug.so: $(X86_64_DEBUG_OBJS)
 	$(call link_x86_64_debug)
