@@ -135,6 +135,6 @@ struct ufs_superblock {
 };
 
 // Public functions
-extern EFI_STATUS DetectUFS(EFI_BLOCK_IO_PROTOCOL *BlockIo, UINT32 SliceStartLBA, struct ufs_superblock *sb);
+extern EFI_STATUS DetectUFS(EFI_BLOCK_IO_PROTOCOL *BlockIo, UINT32 SliceStartLBA, void *sb_void);
 
 #endif /* UFS_H_ */

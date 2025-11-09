@@ -21,16 +21,38 @@
 #ifndef _BFS_H_
 #define _BFS_H_
 
+/*
+ * BFS in-memory superblock structure.
+ */
+struct bfs_superblock_info {
+};
+
+/*
+ * BFS on-disk superblock structure.
+ */
 struct bfs_superblock {
+    INT32 bdsup_bfsmagic;		/* Magic number */
+	INT32 bdsup_start;		/* Filesystem data start offset */
+	INT32 bdsup_end;		/* Filesystem data end offset */
+
+	/*
+	 * The next four words are used to promote sanity in compaction.  Used
+	 * correctly, a crash at any point during compaction is recoverable
+	 */
+	INT32 bdcp_fromblock;		/* "From" block of current transfer */
+	INT32 bdcp_toblock;		/* "To" block of current transfer */
+	INT32 bdcpb_fromblock;	/* Backup of "from" block */
+	INT32 bdcpb_toblock;		/* Backup of "to" block */
+	INT32 bdsup_filler[121];	/* Padding */
 };
 
 #define BFS_MAGIC	0x1BADFACE
 #define BFS_SUPEROFF	0
-#define BFS_DIRSTART	(BFS_SUPEROFF + sizeof(struct bdsuper))
+#define BFS_DIRSTART	(BFS_SUPEROFF + sizeof(struct bfs_superblock))
 #define BFS_BSIZE	512
 
 // Public functions.
 
-extern EFI_STATUS DetectBFS(EFI_BLOCK_IO_PROTOCOL *BlockIo, UINT32 SliceStartLBA, struct bfs_superblock *sb);
+extern EFI_STATUS DetectBFS(EFI_BLOCK_IO_PROTOCOL *BlockIo, UINT32 SliceStartLBA, void *sb_void);
 
 #endif /* _BFS_H_ */

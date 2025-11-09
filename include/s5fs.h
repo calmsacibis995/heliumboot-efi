@@ -68,6 +68,6 @@ struct s5_superblock {
 
 // Public functions
 
-EFI_STATUS DetectS5(EFI_BLOCK_IO_PROTOCOL *BlockIo, UINT32 SliceStartLBA, struct s5_superblock *sb);
+EFI_STATUS DetectS5(EFI_BLOCK_IO_PROTOCOL *BlockIo, UINT32 SliceStartLBA, void *sb_void);
 
 #endif /* _S5FS_H_ */

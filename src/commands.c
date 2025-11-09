@@ -118,8 +118,9 @@ ls(CHAR16 *args)
 	UINTN HandleCount;
 	UINT32 PartitionStart = 0;
 	struct svr4_vtoc *Vtoc = NULL;
-	struct s5_superblock *sb = NULL;
+	VOID *sb = NULL;
 	UINT32 SliceLBA;
+	struct fs_tab_entry *fs_entry_ptr;
 
 	if (args && StrnCmp(args, L"sd(", 3) == 0) {
 		CHAR16 *p = args + 3;
@@ -204,10 +205,18 @@ ls(CHAR16 *args)
 		goto cleanup;
 	}
 
-	Status = DetectS5(BlockIo, SliceLBA, sb);
-	if (EFI_ERROR(Status)) {
-		Print(L"Could not read s5 filesystem: %r\n", Status);
-		goto cleanup;
+	// Run through all supported filesystems to detect one.
+	for (fs_entry_ptr = fs_tab; fs_entry_ptr->fs_name != NULL; fs_entry_ptr++) {
+		sb = AllocateZeroPool(fs_entry_ptr->sb_size);
+		if (!sb) {
+			Print(L"Failed to allocate superblock buffer\n");
+			continue;
+		}
+		Status = fs_entry_ptr->detect_fs(BlockIo, SliceLBA, sb);
+		if (!EFI_ERROR(Status)) {
+			Print(L"Detected filesystem: %s\n", fs_entry_ptr->fs_name);
+			break;
+		}
 	}
 
 open_volume:

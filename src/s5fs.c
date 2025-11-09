@@ -25,11 +25,12 @@
 #include "s5fs.h"
 
 EFI_STATUS
-DetectS5(EFI_BLOCK_IO_PROTOCOL *BlockIo, UINT32 SliceStartLBA, struct s5_superblock *sb)
+DetectS5(EFI_BLOCK_IO_PROTOCOL *BlockIo, UINT32 SliceStartLBA, void *sb_void)
 {
     EFI_STATUS Status;
     UINTN BlockSize = BlockIo->Media->BlockSize;
     VOID *Buffer = AllocateZeroPool(BlockSize);
+    struct s5_superblock *sb = (struct s5_superblock *)sb_void;
 
     if (!Buffer)
         return EFI_OUT_OF_RESOURCES;

@@ -38,8 +38,8 @@ struct boot_command_tab {
 
 struct fs_tab_entry {
 	CHAR16 *fs_name;		// Filesystem name.
+	UINTN sb_size;			// Filesystem superblock size.
 	EFI_STATUS (*detect_fs)(EFI_BLOCK_IO_PROTOCOL *BlockIo, UINT32 SliceStartLBA, void *fs_struct);		// Function to detect filesystem.
-	//EFI_STATUS (*read_fs)(EFI_SIMPLE_FILE_SYSTEM_PROTOCOL *FileSystem, CHAR16 *Path, VOID **FileBuffer, UINTN *FileSize);
 };
 
 // vers.c

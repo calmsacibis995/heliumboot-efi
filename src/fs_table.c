@@ -27,8 +27,8 @@
 #include "bfs.h"
 
 struct fs_tab_entry fs_tab[] = {
-    { L"s5", DetectS5 },
-    { L"ufs", DetectUFS },
-    { L"bfs", DetectBFS },
-    { NULL, NULL }
+    { L"s5", sizeof(struct s5_superblock), DetectS5 },
+    { L"ufs", sizeof(struct ufs_superblock), DetectUFS },
+    { L"bfs", sizeof(struct bfs_superblock_info), DetectBFS },
+    { NULL, 0, NULL }
 };
