@@ -36,8 +36,7 @@ InitVideo(void)
 	UINT32 BestMode = 0;
 
 	// Locate the GOP.
-	Status = uefi_call_wrapper(BS->LocateProtocol, 3,
-		&GraphicsOutputProtocolGuid, NULL, (void **)&gop);
+	Status = uefi_call_wrapper(BS->LocateProtocol, 3, &GraphicsOutputProtocolGuid, NULL, (void **)&gop);
 	if (EFI_ERROR(Status)) {
 		Print(L"InitVideo: Failed to locate GOP: %r\n", Status);
 		gop = NULL;
@@ -77,6 +76,13 @@ InitVideo(void)
 		return Status;
 	}
 
+	// Set text color attributes (yellow on black).
+	Status = uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_LIGHTGRAY, EFI_BLACK));
+	if (EFI_ERROR(Status)) {
+		Print(L"Failed to set text color attributes: %r\n", Status);
+		return Status;
+	}
+
 	// Clear the screen.
 	Status = uefi_call_wrapper(ST->ConOut->ClearScreen, 1, ST->ConOut);
 	if (EFI_ERROR(Status)) {
@@ -85,10 +91,14 @@ InitVideo(void)
 	}
 
 #if defined(DEV_BLD) || defined(DEBUG_BLD)
+	UINTN cols = Info->HorizontalResolution / 8;
+	UINTN rows = Info->VerticalResolution / 16;
+
 	Print(L"GOP initialized: %ux%u, %u pixels/scanline\n", gop->Mode->Info->HorizontalResolution,
 		gop->Mode->Info->VerticalResolution, gop->Mode->Info->PixelsPerScanLine);
 	Print(L"Framebuffer base: 0x%lx, size: %lu bytes\n", gop->Mode->FrameBufferBase,
 		gop->Mode->FrameBufferSize);
+	Print(L"Text mode: %ux%u\n", cols, rows);
 #endif
 
 	return EFI_SUCCESS;

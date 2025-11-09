@@ -30,6 +30,8 @@
 EFI_STATUS
 LoadFile(CHAR16 *args)
 {
+	Print(L"Not implemented yet!\n");
+	return EFI_SUCCESS;
 }
 
 EFI_STATUS
@@ -45,6 +47,13 @@ LoadFileEFI(CHAR16 *path)
 		3, gImageHandle, &LoadedImageProtocol, (void**)&LoadedImage);
 	if (EFI_ERROR(Status)) {
 		Print(L"Could not get loaded image protocol\n");
+		return Status;
+	}
+
+	Status = uefi_call_wrapper(gST->BootServices->HandleProtocol, 3, LoadedImage->DeviceHandle,
+		&FileSystemProtocol, (void**)&RootFS);
+	if (EFI_ERROR(Status)) {
+		Print(L"Could not get file system protocol: %r\n", Status);
 		return Status;
 	}
 
@@ -80,9 +89,9 @@ LoadFileEFI(CHAR16 *path)
 	Status = uefi_call_wrapper(gST->BootServices->StartImage,
 		3, KernelImage, NULL, NULL);
 	if (EFI_ERROR(Status)) {
-		Print(L"Failed to start kernel image\n");
+		Print(L"Failed to start EFI image: %r\n", Status);
 		return Status;
 	}
 
-	return Status;
+	return EFI_SUCCESS;
 }
