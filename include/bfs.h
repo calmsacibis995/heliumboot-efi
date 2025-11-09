@@ -29,4 +29,8 @@ struct bfs_superblock {
 #define BFS_DIRSTART	(BFS_SUPEROFF + sizeof(struct bdsuper))
 #define BFS_BSIZE	512
 
+// Public functions.
+
+extern EFI_STATUS DetectBFS(EFI_BLOCK_IO_PROTOCOL *BlockIo, UINT32 SliceStartLBA, struct bfs_superblock *sb);
+
 #endif /* _BFS_H_ */

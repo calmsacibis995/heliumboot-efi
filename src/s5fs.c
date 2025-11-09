@@ -34,7 +34,7 @@ DetectS5(EFI_BLOCK_IO_PROTOCOL *BlockIo, UINT32 SliceStartLBA, struct s5_superbl
     if (!Buffer)
         return EFI_OUT_OF_RESOURCES;
 
-    Status = BlockIo->ReadBlocks(BlockIo, BlockIo->Media->MediaId, SliceStartLBA + SUPERB, BlockSize, Buffer);
+    Status = uefi_call_wrapper(BlockIo->ReadBlocks, 5, BlockIo, BlockIo->Media->MediaId, SliceStartLBA + SUPERB, BlockSize, Buffer);
     if (EFI_ERROR(Status)) {
         FreePool(Buffer);
         return Status;

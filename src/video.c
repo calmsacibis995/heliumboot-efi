@@ -76,7 +76,7 @@ InitVideo(void)
 		return Status;
 	}
 
-	// Set text color attributes (yellow on black).
+	// Set text color attributes.
 	Status = uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_LIGHTGRAY, EFI_BLACK));
 	if (EFI_ERROR(Status)) {
 		Print(L"Failed to set text color attributes: %r\n", Status);

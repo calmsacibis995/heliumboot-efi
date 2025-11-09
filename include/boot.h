@@ -36,6 +36,12 @@ struct boot_command_tab {
 	CHAR16 *cmd_usage;	// Command usage.
 };
 
+struct fs_tab_entry {
+	CHAR16 *fs_name;		// Filesystem name.
+	EFI_STATUS (*detect_fs)(EFI_BLOCK_IO_PROTOCOL *BlockIo, UINT32 SliceStartLBA, void *fs_struct);		// Function to detect filesystem.
+	//EFI_STATUS (*read_fs)(EFI_SIMPLE_FILE_SYSTEM_PROTOCOL *FileSystem, CHAR16 *Path, VOID **FileBuffer, UINTN *FileSize);
+};
+
 // vers.c
 extern const CHAR16 *getversion(void);
 extern const CHAR16 *getrevision(void);
@@ -77,6 +83,9 @@ extern void print_version(CHAR16 *args);
 
 // cmd_table.c
 extern struct boot_command_tab cmd_tab[];
+
+// fs_table.c
+extern struct fs_tab_entry fs_tab[];
 
 // video.c
 extern EFI_STATUS InitVideo(void);

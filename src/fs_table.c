@@ -18,20 +18,17 @@
  * <https://www.gnu.org/licenses/>.
  */
 
-/*
- * bfs.c
- * SVR4/UnixWare Boot File System driver.
- */
-
 #include <efi.h>
 #include <efilib.h>
 
 #include "boot.h"
+#include "s5fs.h"
+#include "ufs.h"
 #include "bfs.h"
 
-EFI_STATUS
-DetectBFS(EFI_BLOCK_IO_PROTOCOL *BlockIo, UINT32 SliceStartLBA, struct bfs_superblock *sb)
-{
-    Print(L"%s: not implemented yet!\n", __FUNCTION__);
-    return EFI_SUCCESS;
-}
+struct fs_tab_entry fs_tab[] = {
+    { L"s5", DetectS5 },
+    { L"ufs", DetectUFS },
+    { L"bfs", DetectBFS },
+    { NULL, NULL }
+};

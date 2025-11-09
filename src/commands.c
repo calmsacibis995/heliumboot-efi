@@ -200,7 +200,7 @@ ls(CHAR16 *args)
 			goto cleanup;
 		}
 	} else {
-		Print(L"Failed to open VTOC: %r\n", Status);
+		Print(L"Failed to read VTOC: %r\n", Status);
 		goto cleanup;
 	}
 

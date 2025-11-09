@@ -25,6 +25,8 @@
 #include "ufs.h"
 
 EFI_STATUS
-ufs_init(void)
+DetectUFS(EFI_BLOCK_IO_PROTOCOL *BlockIo, UINT32 SliceStartLBA, struct ufs_superblock *sb)
 {
+    Print(L"%s: not implemented yet!\n", __FUNCTION__);
+    return EFI_SUCCESS;
 }
