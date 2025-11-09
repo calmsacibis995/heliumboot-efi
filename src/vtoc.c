@@ -41,13 +41,14 @@ ReadVtoc(struct svr4_vtoc *OutVtoc, EFI_BLOCK_IO_PROTOCOL *BlockIo, UINT32 Parti
     Media = BlockIo->Media;
     BlockSize = Media->BlockSize;
 
-    Status = gBS->AllocatePool(EfiBootServicesData, BlockSize, &Buffer);
+    Status = uefi_call_wrapper(gBS->AllocatePool, 3, EfiBootServicesData, BlockSize, &Buffer);
     if (EFI_ERROR(Status)) {
         Print(L"Failed to allocate memory: %r\n", Status);
         return Status;
     }
 
-    Status = BlockIo->ReadBlocks(BlockIo, Media->MediaId, PdinfoLba, BlockSize, Buffer);
+    Status = uefi_call_wrapper(BlockIo->ReadBlocks, 5, BlockIo, Media->MediaId, PdinfoLba,
+    	BlockSize, Buffer);
     if (EFI_ERROR(Status)) {
         Print(L"Failed to read VTOC: %r\n", Status);
         gBS->FreePool(Buffer);
@@ -83,7 +84,7 @@ ReadVtoc(struct svr4_vtoc *OutVtoc, EFI_BLOCK_IO_PROTOCOL *BlockIo, UINT32 Parti
     }
 
     CopyMem(OutVtoc, Vtoc, sizeof(struct svr4_vtoc));
-    gBS->FreePool(Buffer);
+    uefi_call_wrapper(gBS->FreePool, 1, Buffer);
 
     return EFI_SUCCESS;
 }

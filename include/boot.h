@@ -45,14 +45,15 @@ extern const CHAR16 *getcommitno(void);
 extern const CHAR16 *getbuildno(void);
 
 // boot.c
-extern CHAR16 filepath[100];
 extern BOOLEAN exit_flag;
 extern EFI_HANDLE gImageHandle;
 
 // helpers.c
 extern UINTN StrDecimalToUintn(CHAR16 *str);
+extern void SplitCommandLine(CHAR16 *line, CHAR16 **command, CHAR16 **arguments);
 extern EFI_STATUS MountAtLba(EFI_BLOCK_IO_PROTOCOL *ParentBlockIo, EFI_LBA StartLba, EFI_SIMPLE_FILE_SYSTEM_PROTOCOL **FileSystem);
 extern EFI_STATUS FindPartitionStart(EFI_BLOCK_IO_PROTOCOL *BlockIo, UINT32 *PartitionStart);
+extern void HeliumBootPanic(EFI_STATUS Status, const CHAR16 *fmt, ...);
 extern UINT32 SwapBytes32(UINT32 val);
 extern UINT16 SwapBytes16(UINT16 val);
 

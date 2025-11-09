@@ -28,11 +28,12 @@ InitVideo(void)
 {
 	EFI_STATUS Status;
 	EFI_GUID GraphicsOutputProtocolGuid = EFI_GRAPHICS_OUTPUT_PROTOCOL_GUID;
-	UINT32 ModeNumber, BestMode;
-	UINTN InfoSize;
 	EFI_GRAPHICS_OUTPUT_PROTOCOL *gop = NULL;
 	EFI_GRAPHICS_OUTPUT_MODE_INFORMATION *Info;
-	UINT32 Res, MaxRes;
+	UINT32 ModeNumber, Res;
+	UINTN InfoSize;
+	UINT32 MaxRes = 0;
+	UINT32 BestMode = 0;
 
 	// Locate the GOP.
 	Status = uefi_call_wrapper(BS->LocateProtocol, 3,
@@ -55,17 +56,24 @@ InitVideo(void)
 		}
 	}
 
+	// Reset console output.
+	Status = uefi_call_wrapper(ST->ConOut->Reset, 2, ST->ConOut, TRUE);
+	if (EFI_ERROR(Status)) {
+		Print(L"Failed to reset console: %r\n", Status);
+		return Status;
+	}
+
 	// Set the video mode.
-	Status = uefi_call_wrapper(gop->SetMode, BestMode, gop, 0);
+	Status = uefi_call_wrapper(gop->SetMode, 2, gop, BestMode);
 	if (EFI_ERROR(Status)) {
 		Print(L"Failed to set video mode: %r\n", Status);
 		return Status;
 	}
 
-	// Reset console output.
-	Status = uefi_call_wrapper(ST->ConOut->Reset, 2, ST->ConOut, TRUE);
+	// Enable the UEFI blinking text cursor.
+	Status = uefi_call_wrapper(ST->ConOut->EnableCursor, 2, ST->ConOut, TRUE);
 	if (EFI_ERROR(Status)) {
-		Print(L"Warning: Failed to reset console: %r\n", Status);
+		Print(L"Failed to enable the cursor: %r\n", Status);
 		return Status;
 	}
 
@@ -75,6 +83,13 @@ InitVideo(void)
 		Print(L"Failed to clear screen: %r\n", Status);
 		return Status;
 	}
+
+#if defined(DEV_BLD) || defined(DEBUG_BLD)
+	Print(L"GOP initialized: %ux%u, %u pixels/scanline\n", gop->Mode->Info->HorizontalResolution,
+		gop->Mode->Info->VerticalResolution, gop->Mode->Info->PixelsPerScanLine);
+	Print(L"Framebuffer base: 0x%lx, size: %lu bytes\n", gop->Mode->FrameBufferBase,
+		gop->Mode->FrameBufferSize);
+#endif
 
 	return EFI_SUCCESS;
 }

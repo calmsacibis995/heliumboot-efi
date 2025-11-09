@@ -20,6 +20,7 @@
 
 #include <efi.h>
 #include <efilib.h>
+#include <stdarg.h>
 
 #include "boot.h"
 #include "part.h"
@@ -29,6 +30,29 @@ typedef struct BLOCK_IO {
     EFI_BLOCK_IO_PROTOCOL *ParentBlockIo;
     EFI_LBA StartLba; // Start LBA of the partition
 } PARTITION_BLOCK_IO;
+
+void
+SplitCommandLine(CHAR16 *line, CHAR16 **command, CHAR16 **arguments)
+{
+	CHAR16 *p;
+
+	*command = line;
+	*arguments = L"";
+
+	p = line;
+	while (*p != L'\0' && *p != L' ')
+		p++;
+
+	if (*p == L' ') {
+		*p = L'\0';
+		p++;
+
+		while (*p == L' ')
+			p++;
+
+		*arguments = p;
+	}
+}
 
 UINTN
 StrDecimalToUintn(CHAR16 *str)
@@ -135,6 +159,46 @@ FindPartitionStart(EFI_BLOCK_IO_PROTOCOL *BlockIo, UINT32 *PartitionStart)
 	Print(L"No System V partition found in MBR\n");
 	FreePool(MbrBuffer);
 	return EFI_NOT_FOUND;
+}
+
+/*
+ * Function:
+ * HeliumBootPanic()
+ *
+ * Description:
+ * The equivalent of panic() in Unix and its clones. It is called on unresolvable
+ * fatal errors.
+ *
+ * Arguments:
+ * Status: EFI status code
+ * fmt: Formatted message
+ *
+ * Return value:
+ * None.
+ */
+void
+HeliumBootPanic(EFI_STATUS Status, const CHAR16 *fmt, ...)
+{
+	EFI_INPUT_KEY Key;
+	va_list va;
+
+	va_start(va, fmt);
+	Print(L"Bootloader panic: ");
+	VPrint(fmt, va);
+	va_end(va);
+
+	Print(L"\nEFI status: 0x%X (%r)\n", Status, Status);
+
+	Print(L"Press any key to exit HeliumBoot...\n");
+
+	uefi_call_wrapper(ST->ConIn->Reset, 2, ST->ConIn, FALSE);
+	uefi_call_wrapper(ST->ConIn->ReadKeyStroke, 2, ST->ConIn, &Key);
+
+	uefi_call_wrapper(BS->Exit, 3, gImageHandle, Status, 0, NULL);
+
+	// Infinite loop in case we fail to exit.
+	for (;;)
+		;
 }
 
 UINT32
