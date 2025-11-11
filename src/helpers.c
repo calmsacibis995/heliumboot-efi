@@ -179,21 +179,23 @@ FindPartitionStart(EFI_BLOCK_IO_PROTOCOL *BlockIo, UINT32 *PartitionStart)
 void
 HeliumBootPanic(EFI_STATUS Status, const CHAR16 *fmt, ...)
 {
+	EFI_EVENT ev;
 	EFI_INPUT_KEY Key;
+	UINTN index;
 	va_list va;
 
 	va_start(va, fmt);
-	Print(L"Bootloader panic: ");
+	Print(L"HeliumBoot panic: ");
 	VPrint(fmt, va);
 	va_end(va);
 
 	Print(L"\nEFI status: 0x%X (%r)\n", Status, Status);
-
 	Print(L"Press any key to exit HeliumBoot...\n");
 
-	uefi_call_wrapper(ST->ConIn->Reset, 2, ST->ConIn, FALSE);
+	ev = ST->ConIn->WaitForKey;
+	uefi_call_wrapper(BS->WaitForEvent, 3, 1, &ev, &index);
 	uefi_call_wrapper(ST->ConIn->ReadKeyStroke, 2, ST->ConIn, &Key);
-
+	uefi_call_wrapper(ST->ConIn->Reset, 2, ST->ConIn, FALSE);
 	uefi_call_wrapper(BS->Exit, 3, gImageHandle, Status, 0, NULL);
 
 	// Infinite loop in case we fail to exit.

@@ -111,8 +111,8 @@ efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
 
 	Status = uefi_call_wrapper(FileSystem->OpenVolume, 2, FileSystem, &RootFS);
 	if (EFI_ERROR(Status)) {
-		Print(L"Could not open root filesystem: %r\n", Status);
-		return Status;
+		uefi_call_wrapper(BS->FreePool, 1, HandleBuffer);
+		HeliumBootPanic(Status, L"Could not open filesystem\n");
 	}
 
 #if defined(DEBUG_BLD) || defined(DEV_BLD)
