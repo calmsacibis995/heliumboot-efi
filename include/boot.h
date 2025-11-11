@@ -36,11 +36,22 @@ struct boot_command_tab {
 	CHAR16 *cmd_usage;	// Command usage.
 };
 
+typedef EFI_STATUS (*fs_detect_fn)(EFI_BLOCK_IO_PROTOCOL *bio, UINT32 slice_lba, void *sb_buffer);
+typedef EFI_STATUS (*fs_mount_fn)(EFI_BLOCK_IO_PROTOCOL *bio, UINT32 slice_lba, void *sb_buffer, void **mount_out);
+typedef EFI_STATUS (*fs_list_fn)(void *mount_ctx, const CHAR16 *path);
+
+/*
+ * Filesystem table entry structure.
+ */
 struct fs_tab_entry {
 	CHAR16 *fs_name;		// Filesystem name.
+	fs_detect_fn detect_fs;	// Filesystem detection function.
 	UINTN sb_size;			// Filesystem superblock size.
-	EFI_STATUS (*detect_fs)(EFI_BLOCK_IO_PROTOCOL *BlockIo, UINT32 SliceStartLBA, void *fs_struct);		// Function to detect filesystem.
+	fs_mount_fn mount_fs;	// Filesystem mount function.
+	fs_list_fn list_dir;	// Filesystem directory listing function.
 };
+
+// Global functions and variables, sorted by filename.
 
 // vers.c
 extern const CHAR16 *getversion(void);

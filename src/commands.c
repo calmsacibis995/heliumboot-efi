@@ -121,6 +121,8 @@ ls(CHAR16 *args)
 	VOID *sb = NULL;
 	UINT32 SliceLBA;
 	struct fs_tab_entry *fs_entry_ptr;
+	VOID *mount_ctx = NULL;
+	BOOLEAN detected_by_plugin = FALSE;
 
 	if (args && StrnCmp(args, L"sd(", 3) == 0) {
 		CHAR16 *p = args + 3;
@@ -170,7 +172,7 @@ ls(CHAR16 *args)
 
 	Status = uefi_call_wrapper(BS->LocateHandleBuffer, 5, ByProtocol, &BlockIoProtocol, NULL, &HandleCount, &HandleBuffer);
 	if (EFI_ERROR(Status)) {
-		Print(L"Failed to locate block IO handles: %r\n", Status);
+		Print(L"Failed to locate block I/O handles: %r\n", Status);
 		return;
 	}
 
@@ -206,18 +208,56 @@ ls(CHAR16 *args)
 	}
 
 	// Run through all supported filesystems to detect one.
-	for (fs_entry_ptr = fs_tab; fs_entry_ptr->fs_name != NULL; fs_entry_ptr++) {
+	for (fs_entry_ptr = fs_tab; fs_entry_ptr && fs_entry_ptr->fs_name != NULL; fs_entry_ptr++) {
+		if (fs_entry_ptr->sb_size == 0 || fs_entry_ptr->detect_fs == NULL)
+			continue;
+
 		sb = AllocateZeroPool(fs_entry_ptr->sb_size);
 		if (!sb) {
-			Print(L"Failed to allocate superblock buffer\n");
+			Print(L"Failed to allocate memory for superblock\n");
 			continue;
 		}
+
 		Status = fs_entry_ptr->detect_fs(BlockIo, SliceLBA, sb);
 		if (!EFI_ERROR(Status)) {
 			Print(L"Detected filesystem: %s\n", fs_entry_ptr->fs_name);
+			if (fs_entry_ptr->mount_fs) {
+				Status = fs_entry_ptr->mount_fs(BlockIo, SliceLBA, sb, &mount_ctx);
+				if (EFI_ERROR(Status)) {
+					Print(L"Failed to mount %s: %r\n", fs_entry_ptr->fs_name, Status);
+					FreePool(sb);
+					sb = NULL;
+					mount_ctx = NULL;
+					continue;
+				}
+			}
+
+			if (fs_entry_ptr->list_dir && mount_ctx != NULL) {
+				if (!Path || StrLen(Path) == 0)
+					Path = L"\\";
+				Status = fs_entry_ptr->list_dir(mount_ctx, Path);
+				if (EFI_ERROR(Status)) {
+					Print(L"Failed to list directory %s: %r\n", Path, Status);
+					FreePool(sb);
+					sb = NULL;
+					mount_ctx = NULL;
+					continue;
+				}
+				detected_by_plugin = TRUE;
+			} else {
+				detected_by_plugin = FALSE;
+			}
+
 			break;
 		}
+
+		FreePool(sb);
+		sb = NULL;
 	}
+
+	// A filesystem was detected and listed by a plugin. Clean up and exit.
+	if (detected_by_plugin)
+		goto cleanup;
 
 open_volume:
 	Status = uefi_call_wrapper(SimpleFileSystem->OpenVolume, 2, SimpleFileSystem, &Root);
@@ -259,11 +299,17 @@ open_volume:
 	}
 
 cleanup:
+	if (sb)
+		FreePool(sb);
+
 	if (FileInfo)
 		FreePool(FileInfo);
 
 	if (Dir)
 		uefi_call_wrapper(Dir->Close, 1, Dir);
+
+	if (Root)
+		uefi_call_wrapper(Root->Close, 1, Root);
 
 	if (HandleBuffer)
 		FreePool(HandleBuffer);

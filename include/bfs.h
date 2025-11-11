@@ -54,5 +54,7 @@ struct bfs_superblock {
 // Public functions.
 
 extern EFI_STATUS DetectBFS(EFI_BLOCK_IO_PROTOCOL *BlockIo, UINT32 SliceStartLBA, void *sb_void);
+extern EFI_STATUS MountBFS(EFI_BLOCK_IO_PROTOCOL *BlockIo, UINT32 SliceStartLBA, void *sb_buffer, void **mount_out);
+extern EFI_STATUS ReadBFSDir(void *mount_ctx, const CHAR16 *path);
 
 #endif /* _BFS_H_ */

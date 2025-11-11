@@ -116,7 +116,7 @@ efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
 	}
 
 #if defined(DEBUG_BLD) || defined(DEV_BLD)
-	Print(L"\nKyasarin %s (commit %s)\n", getrevision(), getcommitno());
+	Print(L"\nKyasarin %s (commit %s)\n", getrevision(), getcommitno());	// Yes, we name stuff after Nintendo characters.
 #else
 	Print(L"\n%s\n", getversion());
 #endif

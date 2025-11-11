@@ -136,5 +136,7 @@ struct ufs_superblock {
 
 // Public functions
 extern EFI_STATUS DetectUFS(EFI_BLOCK_IO_PROTOCOL *BlockIo, UINT32 SliceStartLBA, void *sb_void);
+extern EFI_STATUS MountUFS(EFI_BLOCK_IO_PROTOCOL *BlockIo, UINT32 SliceStartLBA, void *sb_buffer, void **mount_out);
+extern EFI_STATUS ReadUFSDir(void *mount_ctx, const CHAR16 *path);
 
 #endif /* UFS_H_ */

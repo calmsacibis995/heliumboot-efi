@@ -24,8 +24,18 @@
 #include <efi.h>
 #include <efilib.h>
 
+#include "vnode.h"
+
 #define	NICINOD	100		/* number of superblock inodes */
 #define	NICFREE	50		/* number of superblock free blocks */
+#define	DIRSIZ	14
+
+struct s5_dirent {
+    UINT16 d_ino;
+    INT8 d_name[DIRSIZ];
+};
+
+#define	SDSIZ	(sizeof(struct s5_direct))
 
 /*
  * S5 superblock structure.
@@ -53,6 +63,57 @@ struct s5_superblock {
     UINT32 s_type;
 } __attribute__((packed));
 
+#define	NADDR	13
+#define	NSADDR	(NADDR*sizeof(INT32)/sizeof(INT16))
+
+struct s5_inode {
+    struct s5_inode *i_forw;    /* forward link */
+    struct s5_inode *i_back;    /* backward link */
+    struct s5_inode *av_forw;   /* forward link in free list */
+    struct s5_inode *av_back;   /* backward link in free list */
+    UINT16	i_flag;		/* flags */
+	UINT16	i_number;	/* inode number */
+	UINT32	i_dev;		/* device where inode resides */
+	UINT16  i_mode;     /* file mode and type */
+	UINT16	i_uid;		/* owner */
+	UINT16	i_gid;		/* group */
+	INT16 i_nlink;	/* number of links */
+	INT32	i_size;		/* size in bytes */
+	INT32	i_atime;	/* last access time */
+	INT32	i_mtime;	/* last modification time */
+	INT32	i_ctime;	/* last "inode change" time */
+	INT32	i_addr[NADDR];	/* block address list */
+	INT16	i_nilocks;	/* XXX -- count of recursive ilocks */
+	INT16	i_owner;	/* XXX -- proc slot of ilock owner */
+	INT32	i_nextr;	/* next byte read offset (read-ahead) */
+	UINT16 	i_gen;		/* generation number */
+	INT32   i_mapcnt;       /* number of mappings of pages */
+	UINT32  i_vcode;	/* version code attribute */
+	struct vnode i_vnode;	/* Contains an instance of a vnode */
+	INT32	*i_map;		/* block list for the corresponding file */
+	UINT32	i_rdev;		/* rdev field for block/char specials */
+
+    INT32 i_mapsz;      /* kmem_alloc'ed size */
+    INT32 i_oldsz;      /* i_size when you did the allocation */
+};
+
+/*
+ * S5 mount private data.
+ */
+struct s5_mount {
+    struct s5_superblock sb;
+    UINT32 bsize;
+    UINT32 inopb;
+    UINT32 nindir;
+    UINT32 bshift;
+    UINT32 bmask;
+    UINT32 nshift;
+    UINT32 nmask;
+    struct vnode *root_vnode;
+    EFI_BLOCK_IO_PROTOCOL *bio;
+    UINT32 slice_start_lba;
+};
+
 #define FsMAGIC	0xfd187e20	/* s_magic */
 
 #define	SUPERB	((INT32)1)	/* block number of the super block */
@@ -68,6 +129,8 @@ struct s5_superblock {
 
 // Public functions
 
-EFI_STATUS DetectS5(EFI_BLOCK_IO_PROTOCOL *BlockIo, UINT32 SliceStartLBA, void *sb_void);
+extern EFI_STATUS DetectS5(EFI_BLOCK_IO_PROTOCOL *BlockIo, UINT32 SliceStartLBA, void *sb_void);
+extern EFI_STATUS MountS5(EFI_BLOCK_IO_PROTOCOL *BlockIo, UINT32 SliceStartLBA, void *sb_buffer, void **mount_out);
+extern EFI_STATUS ReadS5Dir(void *mount_ctx, const CHAR16 *path);
 
 #endif /* _S5FS_H_ */
