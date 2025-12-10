@@ -195,7 +195,7 @@ x86_64_build: prep_build x86_64/boot.efi
 	$(call link_x86_64)
 	mcopy -i fat.img x86_64/boot.efi ::/EFI/BOOT/BOOTX64.EFI
 
-aarch64_build: prep_build x86_64/boot.efi
+aarch64_build: prep_build aarch64/boot.efi
 	$(call link_aarch64)
 	mcopy -i fat.img aarch64/boot.efi ::/EFI/BOOT/BOOTAA64.EFI
 
