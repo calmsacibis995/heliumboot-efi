@@ -52,12 +52,13 @@ efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
 	InitializeLib(ImageHandle, SystemTable);
 	gImageHandle = ImageHandle;
 
+	// Disable UEFI watchdog timer.
+	uefi_call_wrapper(BS->SetWatchdogTimer, 4, 0, 0, 0, NULL);
+
 	// Initialize video output, so that we can use graphics.
 	Status = InitVideo();
-	if (EFI_ERROR(Status)) {
-		Print(L"Failed to initialize video: %r\n", Status);
-		return Status;
-	}
+	if (EFI_ERROR(Status))
+		HeliumBootPanic(Status, L"Could not initialize video!\n");
 
 	// Get info about our loaded image.
 	Status = uefi_call_wrapper(SystemTable->BootServices->HandleProtocol,
@@ -73,7 +74,7 @@ efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
 	Print(L"ImageSize         : 0x%lX\n", LoadedImage->ImageSize);
 #else
 	Print(L"LoadedImage       : 0x%X\n", LoadedImage);
-	Print(L"FilePath          : 0x%X\n", LoadedImage->FilePath);
+	Print(L"FilePath          : 0x%X (%s)\n", LoadedImage->FilePath, LoadedImage->FilePath);
 	Print(L"ImageBase         : 0x%X\n", LoadedImage->ImageBase);
 	Print(L"ImageSize         : 0x%X\n", LoadedImage->ImageSize);
 #endif /* _LP64 */
