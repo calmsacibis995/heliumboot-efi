@@ -51,6 +51,29 @@ struct fs_tab_entry {
 	fs_list_fn list_dir;	// Filesystem directory listing function.
 };
 
+enum FileFormats {
+	NONE,
+	ELF,
+	COFF,
+	AOUT,
+	PECOFF
+};
+
+typedef enum FileFormats lfhdr_t;
+
+/*
+ * Boot header.
+ */
+struct BootHeader {
+	lfhdr_t type;		// File type.
+	int nsect;		// Number of sections.
+#if _LP64
+	UINT64 entry;		// Entry point.
+#else
+	UINT32 entry;		// Entry point.
+#endif
+};
+
 // Global functions and variables, sorted by filename.
 
 // vers.c
@@ -73,6 +96,9 @@ extern EFI_STATUS FindPartitionStart(EFI_BLOCK_IO_PROTOCOL *BlockIo, UINT32 *Par
 extern void HeliumBootPanic(EFI_STATUS Status, const CHAR16 *fmt, ...);
 extern UINT32 SwapBytes32(UINT32 val);
 extern UINT16 SwapBytes16(UINT16 val);
+extern UINT64 GetTimeSeconds(void);
+extern EFI_STATUS ReadFile(EFI_FILE_PROTOCOL *File, CHAR16 Buffer, UINTN BufferSize, UINTN *Actual);
+extern void *MemMove(void *dst, const void *src, UINTN len);
 
 // loadfile.c
 extern EFI_STATUS LoadFile(CHAR16 *args);
@@ -100,6 +126,11 @@ extern struct fs_tab_entry fs_tab[];
 
 // video.c
 extern EFI_STATUS InitVideo(void);
+extern void PrintToScreen(const CHAR16 *Fmt, ...);
+extern void InputToScreen(CHAR16 *Prompt, CHAR16 *InStr, UINTN StrLen);
+extern void InitProgressBar(INTN Id, UINTN BarLimit, CONST CHAR8 *Buffer);
+extern void UpdateProgressBar(INTN Id, UINTN NewProgress);
+extern BOOLEAN VideoInitFlag;
 
 // vtoc.c
 extern EFI_STATUS ReadVtoc(struct svr4_vtoc *OutVtoc, EFI_BLOCK_IO_PROTOCOL *BlockIo, UINT32 PartitionStart);

@@ -66,7 +66,7 @@ efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
 	if (EFI_ERROR(Status))
 		HeliumBootPanic(Status, L"Could not get loaded image protocol\n");
 
-#if defined(DEV_BLD) || defined(DEBUG_BLD)
+#if defined(DEBUG_BLD)
 #if _LP64
 	Print(L"LoadedImage       : 0x%lX\n", LoadedImage);
 	Print(L"FilePath          : 0x%lX (%s)\n", LoadedImage->FilePath, LoadedImage->FilePath);
@@ -93,7 +93,7 @@ efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
 
 	Status = FindPartitionStart(BlockIo, &PartitionStart);
 	if (EFI_ERROR(Status)) {
-		Print(L"Failed to find partition start: %r\n", Status);
+		PrintToScreen(L"Failed to find partition start: %r\n", Status);
 		PartitionStart = 0;		// Default to 0 if no partition found
 	} else {
 		// Get the VTOC structure.
@@ -117,9 +117,9 @@ efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
 	}
 
 #if defined(DEBUG_BLD) || defined(DEV_BLD)
-	Print(L"\nKyasarin %s (commit %s)\n", getrevision(), getcommitno());	// Yes, we name stuff after Nintendo characters.
+	PrintToScreen(L"\nKyasarin %s (commit %s)\n", getrevision(), getcommitno());	// Yes, we name stuff after Nintendo characters.
 #else
-	Print(L"\n%s\n", getversion());
+	PrintToScreen(L"\n%s\n", getversion());
 #endif
 
 	// HeliumBoot main loop.
@@ -128,9 +128,9 @@ efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
 		CHAR16 *command, *arguments;
 		struct boot_command_tab *cmd_table_ptr;
 
-		Print(L">> ");
-		Input(L"", filepath, sizeof(filepath) / sizeof(CHAR16));
-		Print(L"\n");
+		PrintToScreen(L">> ");
+		InputToScreen(L"", filepath, sizeof(filepath) / sizeof(CHAR16));
+		PrintToScreen(L"\n");
 
 		if (StrCmp(L"", filepath) == 0)
 			continue;
@@ -142,7 +142,7 @@ efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
 		for (cmd_table_ptr = cmd_tab; cmd_table_ptr->cmd_name != NULL; cmd_table_ptr++) {
 			if (StrCmp(command, cmd_table_ptr->cmd_name) == 0) {
 				if (cmd_table_ptr->cmd_arg_type == CMD_REQUIRED_ARGS && (arguments == NULL || *arguments == L'\0')) {
-					Print(L"Error: %s requires arguments.\n", cmd_table_ptr->cmd_name);
+					PrintToScreen(L"Error: %s requires arguments.\n", cmd_table_ptr->cmd_name);
 					matched_command = TRUE;
 					break;
 				} else {
@@ -157,7 +157,7 @@ efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
 			break;
 
 		if (!matched_command)
-			Print(L"Unknown command. Type '?' or 'help' for a list of built-in commands.\n");
+			PrintToScreen(L"Unknown command. Type '?' or 'help' for a list of built-in commands.\n");
 	}
 
 	uefi_call_wrapper(BS->FreePool, 1, HandleBuffer);

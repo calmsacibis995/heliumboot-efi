@@ -27,11 +27,11 @@
 void
 about(CHAR16 *args)
 {
-	Print(L"HeliumBoot/EFI - The HeliumOS boot loader\n");
-	Print(L"Copyright (c) 2025 Stefanos Stefanidis.\n");
-	Print(L"All rights reserved.\n");
-	Print(L"Version %s\n", getbuildno());
-	Print(L"Internal revision %s, %s\n", getrevision(), getrevdate());
+	PrintToScreen(L"HeliumBoot/EFI - The HeliumOS boot loader\n");
+	PrintToScreen(L"Copyright (c) 2025 Stefanos Stefanidis.\n");
+	PrintToScreen(L"All rights reserved.\n");
+	PrintToScreen(L"Version %s\n", getbuildno());
+	PrintToScreen(L"Internal revision %s, %s\n", getrevision(), getrevdate());
 }
 
 /*
@@ -44,7 +44,7 @@ boot(CHAR16 *args)
 
 	Status = LoadFile(args);
 	if (EFI_ERROR(Status))
-		Print(L"boot: Failed to boot file (%r)\n", Status);
+		PrintToScreen(L"boot: Failed to boot file (%r)\n", Status);
 }
 
 /*
@@ -55,11 +55,11 @@ boot_efi(CHAR16 *args)
 {
 	EFI_STATUS Status;
 
-	Print(L"Booting EFI file: %s\n", args);
+	PrintToScreen(L"Booting EFI file: %s\n", args);
 
 	Status = LoadFileEFI(args);
 	if (EFI_ERROR(Status))
-		Print(L"boot_efi: Failed to boot file (%r)\n", Status);
+		PrintToScreen(L"boot_efi: Failed to boot file (%r)\n", Status);
 }
 
 void
@@ -70,18 +70,18 @@ cls(CHAR16 *args)
 	// Reset console output.
 	Status = uefi_call_wrapper(ST->ConOut->Reset, 2, ST->ConOut, TRUE);
 	if (EFI_ERROR(Status))
-		Print(L"Warning: Failed to reset console: %r\n", Status);
+		PrintToScreen(L"Warning: Failed to reset console: %r\n", Status);
 
 	// Clear the screen.
 	Status = uefi_call_wrapper(ST->ConOut->ClearScreen, 1, ST->ConOut);
 	if (EFI_ERROR(Status))
-		Print(L"Failed to clear screen: %r\n", Status);
+		PrintToScreen(L"Failed to clear screen: %r\n", Status);
 }
 
 void
 echo(CHAR16 *args)
 {
-	Print(L"%s\n", args);
+	PrintToScreen(L"%s\n", args);
 }
 
 void
@@ -95,10 +95,10 @@ help(CHAR16 *args)
 {
 	struct boot_command_tab *cmd;
 
-	Print(L"The commands supported by HeliumBoot are:\n");
+	PrintToScreen(L"The commands supported by HeliumBoot are:\n");
 	for (cmd = cmd_tab; cmd->cmd_name != NULL; cmd++)
-		Print(L"  %s\n", cmd->cmd_usage);
-	Print(L"\n");
+		PrintToScreen(L"  %s\n", cmd->cmd_usage);
+	PrintToScreen(L"\n");
 }
 
 void
@@ -138,7 +138,7 @@ ls(CHAR16 *args)
 			Y = Y * 10 + (*p++ - L'0');
 
 		if (*p != L')') {
-			Print(L"Invalid sd(X,Y) format\n");
+			PrintToScreen(L"Invalid sd(X,Y) format\n");
 			return;
 		}
 
@@ -156,14 +156,14 @@ ls(CHAR16 *args)
 	} else {
 		Status = uefi_call_wrapper(BS->HandleProtocol, 3, gImageHandle, &LoadedImageProtocol, (void **)&LoadedImage);
 		if (EFI_ERROR(Status)) {
-			Print(L"Failed to get LoadedImage protocol: %r\n", Status);
+			PrintToScreen(L"Failed to get LoadedImage protocol: %r\n", Status);
 			return;
 		}
 
 		Status = uefi_call_wrapper(BS->HandleProtocol, 3, LoadedImage->DeviceHandle, &gEfiSimpleFileSystemProtocolGuid,
 			(void **)&SimpleFileSystem);
 		if (EFI_ERROR(Status)) {
-			Print(L"Failed to get SimpleFileSystem protocol: %r\n", Status);
+			PrintToScreen(L"Failed to get SimpleFileSystem protocol: %r\n", Status);
 			return;
 		}
 
@@ -172,24 +172,24 @@ ls(CHAR16 *args)
 
 	Status = uefi_call_wrapper(BS->LocateHandleBuffer, 5, ByProtocol, &BlockIoProtocol, NULL, &HandleCount, &HandleBuffer);
 	if (EFI_ERROR(Status)) {
-		Print(L"Failed to locate block I/O handles: %r\n", Status);
+		PrintToScreen(L"Failed to locate block I/O handles: %r\n", Status);
 		return;
 	}
 
 	if (DriveIndex >= HandleCount) {
-		Print(L"Invalid drive index %u, max index is %u\n", DriveIndex, HandleCount - 1);
+		PrintToScreen(L"Invalid drive index %u, max index is %u\n", DriveIndex, HandleCount - 1);
 		goto cleanup;
 	}
 
 	Status = uefi_call_wrapper(BS->HandleProtocol, 3, HandleBuffer[DriveIndex], &BlockIoProtocol, (void **)&BlockIo);
 	if (EFI_ERROR(Status)) {
-		Print(L"Failed to get Block I/O protocol: %r\n", Status);
+		PrintToScreen(L"Failed to get Block I/O protocol: %r\n", Status);
 		goto cleanup;
 	}
 
 	Status = FindPartitionStart(BlockIo, &PartitionStart);
 	if (EFI_ERROR(Status)) {
-		Print(L"Error: Cannot find partition start: %r\n", Status);
+		PrintToScreen(L"Error: Cannot find partition start: %r\n", Status);
 		goto cleanup;
 	}
 
@@ -197,13 +197,13 @@ ls(CHAR16 *args)
 	if (!EFI_ERROR(Status)) {
 		if (SliceIndex < Vtoc->v_nparts) {
 			SliceLBA = Vtoc->v_part[SliceIndex].p_start;
-			Print(L"VTOC slice %u start LBA: %u\n", SliceIndex, SliceLBA);
+			PrintToScreen(L"VTOC slice %u start LBA: %u\n", SliceIndex, SliceLBA);
 		} else {
-			Print(L"Invalid slice index %u\n", SliceIndex);
+			PrintToScreen(L"Invalid slice index %u\n", SliceIndex);
 			goto cleanup;
 		}
 	} else {
-		Print(L"Failed to read VTOC: %r\n", Status);
+		PrintToScreen(L"Failed to read VTOC: %r\n", Status);
 		goto cleanup;
 	}
 
@@ -214,17 +214,17 @@ ls(CHAR16 *args)
 
 		sb = AllocateZeroPool(fs_entry_ptr->sb_size);
 		if (!sb) {
-			Print(L"Failed to allocate memory for superblock\n");
+			PrintToScreen(L"Failed to allocate memory for superblock\n");
 			continue;
 		}
 
 		Status = fs_entry_ptr->detect_fs(BlockIo, SliceLBA, sb);
 		if (!EFI_ERROR(Status)) {
-			Print(L"Detected filesystem: %s\n", fs_entry_ptr->fs_name);
+			PrintToScreen(L"Detected filesystem: %s\n", fs_entry_ptr->fs_name);
 			if (fs_entry_ptr->mount_fs) {
 				Status = fs_entry_ptr->mount_fs(BlockIo, SliceLBA, sb, &mount_ctx);
 				if (EFI_ERROR(Status)) {
-					Print(L"Failed to mount %s: %r\n", fs_entry_ptr->fs_name, Status);
+					PrintToScreen(L"Failed to mount %s: %r\n", fs_entry_ptr->fs_name, Status);
 					FreePool(sb);
 					sb = NULL;
 					mount_ctx = NULL;
@@ -237,7 +237,7 @@ ls(CHAR16 *args)
 					Path = L"\\";
 				Status = fs_entry_ptr->list_dir(mount_ctx, Path);
 				if (EFI_ERROR(Status)) {
-					Print(L"Failed to list directory %s: %r\n", Path, Status);
+					PrintToScreen(L"Failed to list directory %s: %r\n", Path, Status);
 					FreePool(sb);
 					sb = NULL;
 					mount_ctx = NULL;
@@ -262,7 +262,7 @@ ls(CHAR16 *args)
 open_volume:
 	Status = uefi_call_wrapper(SimpleFileSystem->OpenVolume, 2, SimpleFileSystem, &Root);
 	if (EFI_ERROR(Status)) {
-		Print(L"Failed to open volume: %r\n", Status);
+		PrintToScreen(L"Failed to open volume: %r\n", Status);
 		goto cleanup;
 	}
 
@@ -271,18 +271,18 @@ open_volume:
 
 	Status = uefi_call_wrapper(Root->Open, 5, Root, &Dir, Path, EFI_FILE_MODE_READ, 0);
 	if (EFI_ERROR(Status)) {
-		Print(L"Failed to open directory '%s': %r\n", Path, Status);
+		PrintToScreen(L"Failed to open directory '%s': %r\n", Path, Status);
 		goto cleanup;
 	}
 
 	BufferSize = SIZE_OF_EFI_FILE_INFO + 512;
 	FileInfo = AllocatePool(BufferSize);
 	if (!FileInfo) {
-		Print(L"Failed to allocate memory to list directory\n");
+		PrintToScreen(L"Failed to allocate memory to list directory\n");
 		goto cleanup;
 	}
 
-	Print(L"Listing directory: %s\n", Path);
+	PrintToScreen(L"Listing directory: %s\n", Path);
 	uefi_call_wrapper(Dir->SetPosition, 2, Dir, 0);
 
 	while (TRUE) {
@@ -293,9 +293,9 @@ open_volume:
 		if (StrCmp(FileInfo->FileName, L".") == 0 || StrCmp(FileInfo->FileName, L"..") == 0)
 			continue;
 		if (FileInfo->Attribute & EFI_FILE_DIRECTORY)
-			Print(L"  <DIR>  %s\n", FileInfo->FileName);
+			PrintToScreen(L"  <DIR>  %s\n", FileInfo->FileName);
 		else
-			Print(L" <FILE>  %s  %ld bytes\n", FileInfo->FileName, FileInfo->FileSize);
+			PrintToScreen(L" <FILE>  %s  %ld bytes\n", FileInfo->FileName, FileInfo->FileSize);
 	}
 
 cleanup:
@@ -330,15 +330,15 @@ lsblk(CHAR16 *args)
 
 	Status = LibLocateHandle(ByProtocol, &BlockIoProtocol, NULL, &HandleCount, &HandleBuffer);
 	if (EFI_ERROR(Status)) {
-		Print(L"Failed to locate block I/O handles: %r\n", Status);
+		PrintToScreen(L"Failed to locate block I/O handles: %r\n", Status);
 		return;
 	}
 
-	Print(L"Block devices found: %d\n", HandleCount);
+	PrintToScreen(L"Block devices found: %d\n", HandleCount);
 	for (UINTN i = 0; i < HandleCount; i++) {
 		Status = uefi_call_wrapper(BS->HandleProtocol, 3, HandleBuffer[i], &BlockIoProtocol, (void**)&BlockIo);
 		if (EFI_ERROR(Status)) {
-			Print(L"Failed to get Block I/O protocol for handle %d: %r\n", i, Status);
+			PrintToScreen(L"Failed to get Block I/O protocol for handle %d: %r\n", i, Status);
 			continue;
 		}
 
@@ -346,11 +346,11 @@ lsblk(CHAR16 *args)
 			(void **)&DevicePath);
 		if (EFI_ERROR(Status))
 			DevicePath = NULL;
-		Print(L"[%u]: %llu MB %s %s\n", i, (BlockIo->Media->LastBlock + 1) * BlockIo->Media->BlockSize / (1024 * 1024),
+		PrintToScreen(L"[%u]: %llu MB %s %s\n", i, (BlockIo->Media->LastBlock + 1) * BlockIo->Media->BlockSize / (1024 * 1024),
 			BlockIo->Media->RemovableMedia ? L"(Removable)" : L"(Fixed)", BlockIo->Media->LogicalPartition ? L"(Partition)" : L"(Whole Disk)");
 		if (DevicePath) {
 			CHAR16 *PathStr = DevicePathToStr(DevicePath);
-			Print(L"    Path: %s\n", PathStr);
+			PrintToScreen(L"    Path: %s\n", PathStr);
 			FreePool(PathStr);
 		}
 	}
@@ -365,17 +365,17 @@ reboot(CHAR16 *args)
 
 	Status = uefi_call_wrapper(RT->ResetSystem, 4, EfiResetCold, EFI_SUCCESS, 0, NULL);
 	if (EFI_ERROR(Status))
-		Print(L"Reset failed: %r\n", Status);
+		PrintToScreen(L"Reset failed: %r\n", Status);
 }
 
 void
 print_revision(CHAR16 *args)
 {
-	Print(L"Internal revision %s, %s\n", getrevision(), getrevdate());
+	PrintToScreen(L"Internal revision %s, %s\n", getrevision(), getrevdate());
 }
 
 void
 print_version(CHAR16 *args)
 {
-	Print(L"%s\n", getversion());
+	PrintToScreen(L"%s\n", getversion());
 }

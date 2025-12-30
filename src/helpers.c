@@ -102,7 +102,7 @@ MountAtLba(EFI_BLOCK_IO_PROTOCOL *ParentBlockIo, EFI_LBA StartLba, EFI_SIMPLE_FI
     Status = uefi_call_wrapper(BS->InstallMultipleProtocolInterfaces, 5, &PartitionHandle, &BlockIoProtocol,
         &PartitionBlockIo->BlockIo, NULL);
     if (EFI_ERROR(Status)) {
-        Print(L"No filesystem detected at LBA %llu: %r\n", StartLba, Status);
+        PrintToScreen(L"No filesystem detected at LBA %llu: %r\n", StartLba, Status);
         uefi_call_wrapper(BS->UninstallMultipleProtocolInterfaces, 5, PartitionHandle, &BlockIoProtocol,
             &PartitionBlockIo->BlockIo, NULL);
         return Status;
@@ -120,7 +120,7 @@ FindPartitionStart(EFI_BLOCK_IO_PROTOCOL *BlockIo, UINT32 *PartitionStart)
 	struct mbr_partition *Partitions;
 
 	if (BlockIo->Media->LogicalPartition) {
-		Print(L"The drive chosen is not a drive.\n");
+		PrintToScreen(L"The drive chosen is not a drive.\n");
 		return EFI_UNSUPPORTED;
 	}
 
@@ -133,14 +133,14 @@ FindPartitionStart(EFI_BLOCK_IO_PROTOCOL *BlockIo, UINT32 *PartitionStart)
 	Status = uefi_call_wrapper(BlockIo->ReadBlocks, 5, BlockIo,
 		BlockIo->Media->MediaId, 0, BlockSize, MbrBuffer);
 	if (EFI_ERROR(Status)) {
-		Print(L"Failed to read MBR: %r\n", Status);
+		PrintToScreen(L"Failed to read MBR: %r\n", Status);
 		FreePool(MbrBuffer);
 		return Status;
 	}
 
 	// Check for valid MBR signature.
 	if (MbrBuffer[510] != 0x55 || MbrBuffer[511] != 0xAA) {
-		Print(L"Invalid MBR signature.\n");
+		PrintToScreen(L"Invalid MBR signature.\n");
 		FreePool(MbrBuffer);
 		return EFI_NOT_FOUND;
 	}
@@ -150,13 +150,13 @@ FindPartitionStart(EFI_BLOCK_IO_PROTOCOL *BlockIo, UINT32 *PartitionStart)
 	for (int i = 0; i < 4; i++) {
 		if (Partitions[i].os_type == 0x63) {
 			*PartitionStart = Partitions[i].starting_lba;
-			Print(L"Found System V partition at LBA %u\n", *PartitionStart);
+			PrintToScreen(L"Found System V partition at LBA %u\n", *PartitionStart);
 			FreePool(MbrBuffer);
 			return EFI_SUCCESS;
 		}
 	}
 
-	Print(L"No System V partition found in MBR\n");
+	PrintToScreen(L"No System V partition found in MBR\n");
 	FreePool(MbrBuffer);
 	return EFI_NOT_FOUND;
 }
@@ -185,8 +185,18 @@ HeliumBootPanic(EFI_STATUS Status, const CHAR16 *fmt, ...)
 	va_list va;
 
 	va_start(va, fmt);
-	Print(L"HeliumBoot panic: ");
-	VPrint(fmt, va);
+
+	if (VideoInitFlag) {
+		Print(L"HeliumBoot panic: ");
+		VPrint(fmt, va);
+	} else {
+		CHAR16 Buffer[1024];
+
+		PrintToScreen(L"HeliumBoot panic: ");
+		UnicodeVSPrint(Buffer, sizeof(Buffer), fmt, va);
+		PrintToScreen(Buffer);
+	}
+
 	va_end(va);
 
 	Print(L"\nEFI status: 0x%X (%r)\n", Status, Status);
@@ -213,4 +223,63 @@ UINT16
 SwapBytes16(UINT16 val)
 {
     return (val >> 8) | (val << 8);
+}
+
+UINT64
+GetTimeSeconds(void)
+{
+	EFI_STATUS Status;
+	EFI_TIME Time;
+
+	Status = uefi_call_wrapper(RT->GetTime, 2, &Time, NULL);
+	if (EFI_ERROR(Status))
+		return 0;
+
+	return (UINT64)Time.Hour * 3600 + (UINT64)Time.Minute * 60 + (UINT64)Time.Second;
+}
+
+void *
+MemMove(void *dst, const void *src, UINTN len)
+{
+	UINT8 *d = (UINT8 *)dst;
+	const UINT8 *s = (const UINT8 *)src;
+
+	if (d == s || len == 0)
+		return dst;
+
+	if (d < s) {
+		// Forward copy
+		for (UINTN i = 0; i < len; i++)
+			d[i] = s[i];
+	} else {
+		// Backward copy
+		for (UINTN i = len; i != 0; i--)
+			d[i - 1] = s[i - 1];
+	}
+
+	return dst;
+}
+
+EFI_STATUS
+ReadFile(EFI_FILE_PROTOCOL *File, CHAR16 Buffer, UINTN BufferSize, UINTN *Actual)
+{
+	EFI_STATUS Status;
+	UINTN ReadSize;
+
+	if (File == NULL) {
+		*Actual = 0;
+		return EFI_NOT_READY;
+	}
+
+	ReadSize = (UINTN)BufferSize;
+
+	Status = uefi_call_wrapper(File->Read, 3, File, &ReadSize, Buffer);
+	*Actual = ReadSize;
+	if (EFI_ERROR(Status))
+		return Status;
+
+	if (*Actual == BufferSize)
+		return EFI_SUCCESS;
+	else
+		return (*Actual == 0) ? EFI_NOT_FOUND : EFI_END_OF_FILE;
 }

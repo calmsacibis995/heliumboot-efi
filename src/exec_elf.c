@@ -18,7 +18,20 @@
  * <https://www.gnu.org/licenses/>.
  */
 
+/*
+ * File: src/exec_elf.c
+ * Description: Common ELF loader. Loads ELF files and executes them.
+ */
+
 #include <efi.h>
 #include <efilib.h>
 
 #include "boot.h"
+#include "elf.h"
+#include "fatelf.h"
+
+#if _LP64
+struct Elf64_Ehdr ElfHdr;
+#else
+struct Elf32_Ehdr ElfHdr;
+#endif

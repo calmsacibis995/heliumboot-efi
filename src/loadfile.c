@@ -26,12 +26,25 @@
 #include <efilib.h>
 
 #include "boot.h"
+#include "elf.h"
+
+#define MINHDRSZ	1
 
 EFI_STATUS
 LoadFile(CHAR16 *args)
 {
-	Print(L"Not implemented yet!\n");
-	return EFI_SUCCESS;
+	EFI_STATUS Status;
+	EFI_FILE_PROTOCOL *File;
+	UINTN ReadSize;
+	CHAR16 Buffer[MINHDRSZ];
+	UINTN HeaderMagic;
+	struct BootHeader *bhdr;
+
+	Status = ReadFile(File, Buffer, MINHDRSZ, &ReadSize);
+	if (EFI_ERROR(Status)) {
+		Print(L"Failed to read file: %r\n", Status);
+		return;
+	}
 }
 
 EFI_STATUS
@@ -39,7 +52,7 @@ LoadFileEFI(CHAR16 *path)
 {
 	EFI_STATUS Status;
 	EFI_HANDLE KernelImage;
-	EFI_DEVICE_PATH *FilePath;		// EFI file path
+	EFI_DEVICE_PATH *FilePath;
 	EFI_LOADED_IMAGE *LoadedImage;
 	EFI_FILE_HANDLE File, RootFS;
 
