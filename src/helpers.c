@@ -200,20 +200,21 @@ HeliumBootPanic(EFI_STATUS Status, const CHAR16 *fmt, ...)
 	va_start(va, fmt);
 
 	if (VideoInitFlag) {
-		Print(L"HeliumBoot panic: ");
-		VPrint(fmt, va);
-	} else {
 		CHAR16 Buffer[1024];
 
 		PrintToScreen(L"HeliumBoot panic: ");
 		UnicodeVSPrint(Buffer, sizeof(Buffer), fmt, va);
 		PrintToScreen(Buffer);
+		PrintToScreen(L"\nEFI status: 0x%X (%r)\n", Status, Status);
+		PrintToScreen(L"Press any key to exit HeliumBoot...\n");
+	} else {
+		Print(L"HeliumBoot panic: ");
+		VPrint(fmt, va);
+		Print(L"\nEFI status: 0x%X (%r)\n", Status, Status);
+		Print(L"Press any key to exit HeliumBoot...\n");
 	}
 
 	va_end(va);
-
-	Print(L"\nEFI status: 0x%X (%r)\n", Status, Status);
-	Print(L"Press any key to exit HeliumBoot...\n");
 
 	ev = ST->ConIn->WaitForKey;
 	uefi_call_wrapper(BS->WaitForEvent, 3, 1, &ev, &index);

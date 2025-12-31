@@ -40,6 +40,6 @@
 EFI_STATUS
 DetectUFS(EFI_BLOCK_IO_PROTOCOL *BlockIo, UINT32 SliceStartLBA, void *sb_void)
 {
-    Print(L"%s: not implemented yet!\n", __FUNCTION__);
+    PrintToScreen(L"%s: not implemented yet!\n", __FUNCTION__);
     return EFI_SUCCESS;
 }

@@ -55,9 +55,11 @@ LoadFile(CHAR16 *args)
 
 	Status = ReadFile(File, Buffer, MINHDRSZ, &ReadSize);
 	if (EFI_ERROR(Status)) {
-		Print(L"Failed to read file: %r\n", Status);
-		return;
+		PrintToScreen(L"Failed to read file: %r\n", Status);
+		return Status;
 	}
+
+	return EFI_SUCCESS;
 }
 
 EFI_STATUS
@@ -72,28 +74,28 @@ LoadFileEFI(CHAR16 *path)
 	Status = uefi_call_wrapper(gST->BootServices->HandleProtocol,
 		3, gImageHandle, &LoadedImageProtocol, (void**)&LoadedImage);
 	if (EFI_ERROR(Status)) {
-		Print(L"Could not get loaded image protocol\n");
+		PrintToScreen(L"Could not get loaded image protocol\n");
 		return Status;
 	}
 
 	Status = uefi_call_wrapper(gST->BootServices->HandleProtocol, 3, LoadedImage->DeviceHandle,
 		&FileSystemProtocol, (void**)&RootFS);
 	if (EFI_ERROR(Status)) {
-		Print(L"Could not get file system protocol: %r\n", Status);
+		PrintToScreen(L"Could not get file system protocol: %r\n", Status);
 		return Status;
 	}
 
 	// Open the file.
 	Status = uefi_call_wrapper(RootFS->Open, 5, RootFS, &File, path, EFI_FILE_MODE_READ, 0);
 	if (EFI_ERROR(Status)) {
-		Print(L"Could not open file (%r)\n", Status);
+		PrintToScreen(L"Could not open file (%r)\n", Status);
 		return Status;
 	}
 
 	// Get file path.
 	FilePath = FileDevicePath(LoadedImage->DeviceHandle, path);
 	if (FilePath == NULL) {
-		Print(L"Could not create device path for file\n");
+		PrintToScreen(L"Could not create device path for file\n");
 		return EFI_NOT_FOUND;
 	}
 
@@ -101,7 +103,7 @@ LoadFileEFI(CHAR16 *path)
 	Status = uefi_call_wrapper(gST->BootServices->LoadImage,
 		6, FALSE, gImageHandle, FilePath, NULL, 0, &KernelImage);
 	if (EFI_ERROR(Status)) {
-		Print(L"Failed to load image (%r)\n", Status);
+		PrintToScreen(L"Failed to load image (%r)\n", Status);
 		FreePool(FilePath);
 		uefi_call_wrapper(File->Close, 1, File);
 		return Status;
@@ -115,7 +117,7 @@ LoadFileEFI(CHAR16 *path)
 	Status = uefi_call_wrapper(gST->BootServices->StartImage,
 		3, KernelImage, NULL, NULL);
 	if (EFI_ERROR(Status)) {
-		Print(L"Failed to start EFI image: %r\n", Status);
+		PrintToScreen(L"Failed to start EFI image: %r\n", Status);
 		return Status;
 	}
 

@@ -66,7 +66,7 @@ DetectBFS(EFI_BLOCK_IO_PROTOCOL *BlockIo, UINT32 SliceStartLBA, void *sb_void)
     Status = uefi_call_wrapper(BlockIo->ReadBlocks, 5, BlockIo, BlockIo->Media->MediaId, SuperBlkLba,
         BlockSize, Buffer);
     if (EFI_ERROR(Status)) {
-        Print(L"Cannot read BFS superblock at LBA %lu: %r\n", SuperBlkLba, Status);
+        PrintToScreen(L"Cannot read BFS superblock at LBA %lu: %r\n", SuperBlkLba, Status);
         FreePool(Buffer);
         return Status;
     }
@@ -74,7 +74,7 @@ DetectBFS(EFI_BLOCK_IO_PROTOCOL *BlockIo, UINT32 SliceStartLBA, void *sb_void)
     on_disk_sb = (struct bfs_superblock *)Buffer;
 
     if (on_disk_sb->bdsup_bfsmagic != BFS_MAGIC) {
-        Print(L"BFS magic number mismatch: expected 0x%08X, found 0x%08X\n", BFS_MAGIC, on_disk_sb->bdsup_bfsmagic);
+        PrintToScreen(L"BFS magic number mismatch: expected 0x%08X, found 0x%08X\n", BFS_MAGIC, on_disk_sb->bdsup_bfsmagic);
         FreePool(Buffer);
         return EFI_UNSUPPORTED;
     }

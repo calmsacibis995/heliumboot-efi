@@ -78,6 +78,8 @@
 
 #include "boot.h"
 
+static EFI_GRAPHICS_OUTPUT_PROTOCOL *gop = NULL;
+
 UINT8 *Screen;
 UINTN Screenwidth;
 UINTN Screenheight;
@@ -93,6 +95,7 @@ UINTN Limit[2];
 UINT32 ProgressTime[2];
 UINT32 StartTime;
 
+BOOLEAN FramebufferAllowed = TRUE;
 BOOLEAN VideoInitFlag = FALSE;
 
 const UINTN KRgbBlack		= 0x000000;
@@ -258,9 +261,46 @@ static void InputToScreen_Internal(SIMPLE_INPUT_INTERFACE *ConIn,
 static void
 ColourPixel(INTN x, INTN y, UINTN Colour)
 {
-	UINT32 *Fb = (UINT32 *)Screen;
+	UINT32 Pixel;
+	UINT8 Red = (Pixel >> 16) & 0xFF;
+	UINT8 Green = (Pixel >> 8) & 0xFF;
+	UINT8 Blue = (Pixel >> 0) & 0xFF;
 
-	Fb[y * PixelsPerScanLine + x] = Palette32[Colour];
+	Pixel = Palette32[Colour];
+
+	if (!FramebufferAllowed) {
+		EFI_GRAPHICS_OUTPUT_BLT_PIXEL p = {
+			.Red = (Pixel >> 16) & 0xFF,
+			.Green = (Pixel >> 8) & 0xFF,
+			.Blue = (Pixel >> 0) & 0xFF,
+			.Reserved = 0
+		};
+		uefi_call_wrapper(gop->Blt, 10, gop, &p, EfiBltVideoFill,
+			0, 0, x, y, 1, 1, 0);
+	} else {
+		UINT8 *Fb = Screen;
+		Fb = Screen + (y * PixelsPerScanLine + x) * PixelSize;
+
+		switch (gop->Mode->Info->PixelFormat) {
+			case PixelBlueGreenRedReserved8BitPerColor:
+				Fb[0] = Blue;
+				Fb[1] = Green;
+				Fb[2] = Red;
+				break;
+			case PixelRedGreenBlueReserved8BitPerColor:
+				Fb[0] = Red;
+				Fb[1] = Green;
+				Fb[2] = Blue;
+				break;
+		}
+
+		Fb[0] = (UINT8)(Pixel & 0xFF);
+		Fb[1] = (UINT8)((Pixel >> 8) & 0xFF);
+		Fb[2] = (UINT8)((Pixel >> 16) & 0xFF);
+
+		if (PixelSize == 4)
+			Fb[3] = 0;	// reserved
+	}
 }
 
 void
@@ -426,6 +466,7 @@ PrintToScreen(const CHAR16 *Fmt, ...)
 	va_end(va);
 
 	// Convert the string to ASCII for PutChar().
+	// Then print each character one by one.
 	for (i = 0; Buffer[i] != L'\0'; i++) {
 		CHAR16 ch = Buffer[i];
 		if (ch < 0x80)
@@ -433,6 +474,10 @@ PrintToScreen(const CHAR16 *Fmt, ...)
 		else
 			PutChar('?');
 	}
+
+#if defined(DEBUG_BLD)
+	DEBUG((DEBUG_INFO, Buffer));
+#endif
 }
 
 void
@@ -584,7 +629,6 @@ InitVideo(void)
 {
 	EFI_STATUS Status;
 	EFI_GUID GraphicsOutputProtocolGuid = EFI_GRAPHICS_OUTPUT_PROTOCOL_GUID;
-	EFI_GRAPHICS_OUTPUT_PROTOCOL *gop = NULL;
 	EFI_GRAPHICS_OUTPUT_MODE_INFORMATION *Info;
 	UINT32 ModeNumber, Res;
 	UINTN InfoSize;
@@ -646,16 +690,26 @@ InitVideo(void)
 		return Status;
 	}
 
+	switch (gop->Mode->Info->PixelFormat) {
+		case PixelBlueGreenRedReserved8BitPerColor:
+			PixelSize = 4;
+			break;
+		case PixelRedGreenBlueReserved8BitPerColor:
+			PixelSize = 4;
+			break;
+		case PixelBitMask:
+			PixelSize = 4;		// This is usually the case.
+			break;
+		case PixelBltOnly:		// We cannot access the framebuffer directly.
 #if defined(DEBUG_BLD)
-	UINTN cols = Info->HorizontalResolution / 8;
-	UINTN rows = Info->VerticalResolution / 16;
-
-	Print(L"GOP initialized: %ux%u, %u pixels/scanline\n", gop->Mode->Info->HorizontalResolution,
-		gop->Mode->Info->VerticalResolution, gop->Mode->Info->PixelsPerScanLine);
-	Print(L"Framebuffer base: 0x%lx, size: %lu bytes\n", gop->Mode->FrameBufferBase,
-		gop->Mode->FrameBufferSize);
-	Print(L"Text mode: %ux%u\n", cols, rows);
+			Print(L"GOP is BLT-only - direct framebuffer access disabled!\n");
 #endif
+			FramebufferAllowed = FALSE;
+			break;
+		default:
+			Print(L"Unsupported pixel format %lu!\n", gop->Mode->Info->PixelFormat);
+			return EFI_UNSUPPORTED;
+	}
 
 	Screen = (UINT8 *)gop->Mode->FrameBufferBase;
 
@@ -663,9 +717,20 @@ InitVideo(void)
 	Screenheight = gop->Mode->Info->VerticalResolution;
 	PixelsPerScanLine = gop->Mode->Info->PixelsPerScanLine;
 
+	ClearScreen();
+
 	VideoInitFlag = TRUE;
 
-	ClearScreen();
+#if defined(DEBUG_BLD)
+	UINTN cols = Info->HorizontalResolution / 8;
+	UINTN rows = Info->VerticalResolution / 16;
+
+	PrintToScreen(L"GOP initialized: %ux%u, %u pixels/scanline\n", gop->Mode->Info->HorizontalResolution,
+		gop->Mode->Info->VerticalResolution, gop->Mode->Info->PixelsPerScanLine);
+	PrintToScreen(L"Framebuffer base: 0x%lx, size: %lu bytes\n", gop->Mode->FrameBufferBase,
+		gop->Mode->FrameBufferSize);
+	PrintToScreen(L"Text mode: %ux%u\n", cols, rows);
+#endif
 
 	return EFI_SUCCESS;
 }

@@ -47,7 +47,7 @@ ReadVtoc(struct svr4_vtoc *OutVtoc, EFI_BLOCK_IO_PROTOCOL *BlockIo, UINT32 Parti
     EFI_LBA PdinfoLba = PartitionStart + VTOC_SEC;
 
     if (!BlockIo || !BlockIo->Media || BlockIo->Media->BlockSize == 0) {
-        Print(L"OutVtoc and BlockIo are NULL\n");
+        PrintToScreen(L"OutVtoc and BlockIo are NULL\n");
         return EFI_INVALID_PARAMETER;
     }
 
@@ -56,7 +56,7 @@ ReadVtoc(struct svr4_vtoc *OutVtoc, EFI_BLOCK_IO_PROTOCOL *BlockIo, UINT32 Parti
 
     Status = uefi_call_wrapper(gBS->AllocatePool, 3, EfiBootServicesData, BlockSize, &Buffer);
     if (EFI_ERROR(Status)) {
-        Print(L"Failed to allocate memory: %r\n", Status);
+        PrintToScreen(L"Failed to allocate memory: %r\n", Status);
         return Status;
     }
 
@@ -70,28 +70,28 @@ ReadVtoc(struct svr4_vtoc *OutVtoc, EFI_BLOCK_IO_PROTOCOL *BlockIo, UINT32 Parti
 
     struct svr4_pdinfo *Pdinfo = (struct svr4_pdinfo *)Buffer;
     if (Pdinfo->sanity != VALID_PD) {
-        Print(L"Error: pdinfo is not sane (0x%X)\n", Pdinfo->sanity);
+        PrintToScreen(L"Error: pdinfo is not sane (0x%X)\n", Pdinfo->sanity);
         gBS->FreePool(Buffer);
         return EFI_COMPROMISED_DATA;
     }
 
     struct svr4_vtoc *Vtoc = (struct svr4_vtoc *)(Buffer + sizeof(struct svr4_pdinfo));
     if (Vtoc->v_sanity != VTOC_SANE) {
-        Print(L"Error: VTOC is not sane (0x%X)\n", Vtoc->v_sanity);
+        PrintToScreen(L"Error: VTOC is not sane (0x%X)\n", Vtoc->v_sanity);
         gBS->FreePool(Buffer);
         return EFI_COMPROMISED_DATA;
 
     }
 
     if (Vtoc->v_version != V_VERSION) {
-        Print(L"Error: VTOC version mismatch (0x%X)\n", Vtoc->v_version);
+        PrintToScreen(L"Error: VTOC version mismatch (0x%X)\n", Vtoc->v_version);
         gBS->FreePool(Buffer);
         return EFI_COMPROMISED_DATA;
     }
 
     OutVtoc = AllocateZeroPool(sizeof(struct svr4_vtoc));
     if (!OutVtoc) {
-        Print(L"Failed to allocate memory for VTOC\n");
+        PrintToScreen(L"Failed to allocate memory for VTOC\n");
         gBS->FreePool(Buffer);
         return EFI_OUT_OF_RESOURCES;
     }

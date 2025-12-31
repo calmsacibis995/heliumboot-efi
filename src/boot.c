@@ -81,15 +81,15 @@ efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
 
 #if defined(DEBUG_BLD)
 #if _LP64
-	Print(L"LoadedImage       : 0x%lX\n", LoadedImage);
-	Print(L"FilePath          : 0x%lX (%s)\n", LoadedImage->FilePath, LoadedImage->FilePath);
-	Print(L"ImageBase         : 0x%lX\n", LoadedImage->ImageBase);
-	Print(L"ImageSize         : 0x%lX\n", LoadedImage->ImageSize);
+	PrintToScreen(L"LoadedImage       : 0x%lX\n", LoadedImage);
+	PrintToScreen(L"FilePath          : 0x%lX (%s)\n", LoadedImage->FilePath, LoadedImage->FilePath);
+	PrintToScreen(L"ImageBase         : 0x%lX\n", LoadedImage->ImageBase);
+	PrintToScreen(L"ImageSize         : 0x%lX\n", LoadedImage->ImageSize);
 #else
-	Print(L"LoadedImage       : 0x%X\n", LoadedImage);
-	Print(L"FilePath          : 0x%X (%s)\n", LoadedImage->FilePath, LoadedImage->FilePath);
-	Print(L"ImageBase         : 0x%X\n", LoadedImage->ImageBase);
-	Print(L"ImageSize         : 0x%X\n", LoadedImage->ImageSize);
+	PrintToScreen(L"LoadedImage       : 0x%X\n", LoadedImage);
+	PrintToScreen(L"FilePath          : 0x%X (%s)\n", LoadedImage->FilePath, LoadedImage->FilePath);
+	PrintToScreen(L"ImageBase         : 0x%X\n", LoadedImage->ImageBase);
+	PrintToScreen(L"ImageSize         : 0x%X\n", LoadedImage->ImageSize);
 #endif /* _LP64 */
 #endif /* DEBUG_BLD */
 
@@ -112,7 +112,7 @@ efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
 		// Get the VTOC structure.
 		Status = ReadVtoc(Vtoc, BlockIo, PartitionStart);
 		if (EFI_ERROR(Status))
-			Print(L"Warning: VTOC not found on boot volume.\n");
+			PrintToScreen(L"Warning: VTOC not found on boot volume.\n");
 	}
 
 	// Get filesystem type and open the device.

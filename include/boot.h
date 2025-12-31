@@ -144,6 +144,7 @@ extern void InputToScreen(CHAR16 *Prompt, CHAR16 *InStr, UINTN StrLen);
 extern void InitProgressBar(INTN Id, UINTN BarLimit, CONST CHAR8 *Buffer);
 extern void UpdateProgressBar(INTN Id, UINTN NewProgress);
 extern BOOLEAN VideoInitFlag;
+extern BOOLEAN FramebufferAllowed;
 
 // vtoc.c
 extern EFI_STATUS ReadVtoc(struct svr4_vtoc *OutVtoc, EFI_BLOCK_IO_PROTOCOL *BlockIo, UINT32 PartitionStart);
