@@ -139,13 +139,13 @@ efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
 void
 CommandMonitor(void)
 {
+	ClearScreen();
+	PrintToScreen(L"You are now in the Command Monitor. Type '?' or 'help' for a list of commands.\n\n");
+
 	for (;;) {
 		BOOLEAN matched_command = FALSE;
 		CHAR16 *command, *arguments;
 		struct boot_command_tab *cmd_table_ptr;
-
-		ClearScreen();
-		PrintToScreen(L"You are now in the Command Monitor. Type '?' or 'help' for a list of commands.\n\n");
 
 		PrintToScreen(L">> ");
 		InputToScreen(L"", filepath, sizeof(filepath) / sizeof(CHAR16));
