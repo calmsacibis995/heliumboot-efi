@@ -374,14 +374,14 @@ ScrollScreen(void)
 			0, 0, 0, Screenheight - FONT_HEIGHT, Screenwidth, FONT_HEIGHT, 0);
 		FlushScreen();
 	} else {
-		MemMove(Fb, Fb + (Screenwidth*PixelSize * FONT_HEIGHT),
-			(Screenwidth * PixelSize * (Screenheight - (2 * FONT_HEIGHT)) - (Screenwidth * PixelSize * FONT_HEIGHT)));
-		Fb += (Screenwidth*PixelSize*(Screenheight-(2*FONT_HEIGHT))-(Screenwidth*PixelSize*FONT_HEIGHT));
-
-		INTN StartLine = Screenheight - (4 * FONT_HEIGHT);
-		for (y = StartLine; y < StartLine + FONT_HEIGHT; y++) {
+		UINTN PixelStride = gop->Mode->Info->PixelsPerScanLine * PixelSize;
+		UINTN LineBytes = PixelStride;
+		UINTN MoveLines = Screenheight - FONT_HEIGHT;
+		MemMove(Fb, Fb + FONT_HEIGHT * LineBytes, MoveLines * LineBytes);
+		//UINT8 *ClearBase = Fb + MoveLines * LineBytes;
+		for (y = 0; y < FONT_HEIGHT; y++) {
 			for (x = 0; x < Screenwidth; x++)
-				ColourPixel(x, y, KBackground);
+				ColourPixel(x, Screenheight - FONT_HEIGHT + y, KBackground);
 		}
 	}
 }
@@ -399,7 +399,10 @@ ScrollScreenDown(void)
 			0, 0, 0, 0, Screenwidth, FONT_HEIGHT, 0);
 		FlushScreen();
 	} else {
-		MemMove(Fb + (Screenwidth*PixelSize * FONT_HEIGHT), Fb, (Screenwidth * PixelSize * (Screenheight - (2 * FONT_HEIGHT)) - (Screenwidth * PixelSize * FONT_HEIGHT)));
+		UINTN PixelStride = gop->Mode->Info->PixelsPerScanLine * PixelSize;
+		UINTN LineBytes = PixelStride;
+		UINTN MoveLines = Screenheight - FONT_HEIGHT;
+		MemMove(Fb + FONT_HEIGHT * LineBytes, Fb, MoveLines * LineBytes);
 		for (y = 0; y < FONT_HEIGHT; y++) {
 			for (x = 0; x < Screenwidth; x++)
 				ColourPixel(x, y, KBackground);
