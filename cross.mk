@@ -40,9 +40,9 @@ AARCH64_LIB_DIR = $(GNU_EFI_DIR)/aarch64
 RISCV64_LIB_DIR = $(GNU_EFI_DIR)/riscv64
 
 COMMON_CFLAGS = -Iinclude -I$(EFI_INC_DIR) -fpic -ffreestanding -fno-stack-protector -fno-stack-check -Wall
-X86_64_CFLAGS = $(COMMON_CFLAGS) -fshort-wchar -mno-red-zone -maccumulate-outgoing-args
-AARCH64_CFLAGS = $(COMMON_CFLAGS) -fshort-wchar
-RISCV64_CFLAGS = $(COMMON_CFLAGS) -fshort-wchar
+X86_64_CFLAGS = $(COMMON_CFLAGS) -fshort-wchar -mno-red-zone -maccumulate-outgoing-args -DX86_64_BLD
+AARCH64_CFLAGS = $(COMMON_CFLAGS) -fshort-wchar -DAARCH64_BLD
+RISCV64_CFLAGS = $(COMMON_CFLAGS) -fshort-wchar -DRISCV64_BLD
 
 X86_64_DEBUG_CFLAGS = $(X86_64_CFLAGS) -DDEBUG_BLD
 AARCH64_DEBUG_CFLAGS = $(AARCH64_CFLAGS) -DDEBUG_BLD

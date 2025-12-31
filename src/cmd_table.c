@@ -47,6 +47,7 @@ struct boot_command_tab cmd_tab[] = {
 	{ L"echo", echo, CMD_REQUIRED_ARGS, L"echo: STRING" },
 	{ L"exit", exit, CMD_NO_ARGS, L"exit: exit" },
 	{ L"help", help, CMD_NO_ARGS, L"help: help" },
+	{ L"hinv", hinv, CMD_NO_ARGS, L"hinv: hinv" },
 	{ L"ls", ls, CMD_OPTIONAL_ARGS, L"ls: sd(x,y)" },
 	{ L"lsblk", lsblk, CMD_NO_ARGS, L"lsblk: lsblk" },
 	{ L"reboot", reboot, CMD_NO_ARGS, L"reboot: reboot" },

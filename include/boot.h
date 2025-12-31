@@ -112,6 +112,11 @@ extern UINT16 SwapBytes16(UINT16 val);
 extern UINT64 GetTimeSeconds(void);
 extern EFI_STATUS ReadFile(EFI_FILE_PROTOCOL *File, CHAR16 *Buffer, UINTN BufferSize, UINTN *Actual);
 extern void *MemMove(void *dst, const void *src, UINTN len);
+extern CHAR16 *GetScreenInfo(void);
+#if defined(X86_64_BLD)
+extern void AsmCpuid(UINT32 Leaf, UINT32 *Eax, UINT32 *Ebx, UINT32 *Ecx, UINT32 *Edx);
+#endif
+extern UINT64 GetTotalMemoryBytes(void);
 
 // loadfile.c
 extern EFI_STATUS LoadFile(CHAR16 *args);
@@ -125,6 +130,7 @@ extern void cls(CHAR16 *args);
 extern void echo(CHAR16 *args);
 extern void exit(CHAR16 *args);
 extern void help(CHAR16 *args);
+extern void hinv(CHAR16 *args);
 extern void ls(CHAR16 *args);
 extern void lsblk(CHAR16 *args);
 extern void reboot(CHAR16 *args);
@@ -144,6 +150,7 @@ extern void PrintToScreen(const CHAR16 *Fmt, ...);
 extern void InputToScreen(CHAR16 *Prompt, CHAR16 *InStr, UINTN StrLen);
 extern void InitProgressBar(INTN Id, UINTN BarLimit, CONST CHAR8 *Buffer);
 extern void UpdateProgressBar(INTN Id, UINTN NewProgress);
+extern void GetScreenSize(UINTN *ScreenWidth, UINTN *ScreenHeight);
 extern BOOLEAN VideoInitFlag;
 extern BOOLEAN FramebufferAllowed;
 

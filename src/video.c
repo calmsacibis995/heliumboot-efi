@@ -82,8 +82,8 @@ static EFI_GRAPHICS_OUTPUT_PROTOCOL *gop = NULL;
 static EFI_GRAPHICS_OUTPUT_BLT_PIXEL *Shadow;
 
 UINT8 *Screen;
-UINTN Screenwidth;
-UINTN Screenheight;
+static UINTN Screenwidth;
+static UINTN Screenheight;
 UINTN PixelsPerScanLine;
 UINTN PixelSize = 4;
 INTN XPos;
@@ -661,6 +661,13 @@ UpdateProgressBar(INTN Id, UINTN NewProgress)
 			++old_pixels;
 		}
 	}
+}
+
+void
+GetScreenSize(UINTN *ScreenWidth, UINTN *ScreenHeight)
+{
+	*ScreenWidth = Screenwidth;
+	*ScreenHeight = Screenheight;
 }
 
 EFI_STATUS

@@ -105,6 +105,43 @@ help(CHAR16 *args)
 }
 
 void
+hinv(CHAR16 *args)
+{
+	UINT64 MemBytes = GetTotalMemoryBytes();
+	CHAR16 *ScreenInfo = GetScreenInfo();
+
+	PrintToScreen(L"\tHardware Inventory:\n\n");
+	PrintToScreen(L"\tFirmware:               %s (%d.%d)\n", ST->FirmwareVendor,
+		ST->FirmwareRevision >> 16, ST->FirmwareRevision & ((1 << 16) - 1));
+	PrintToScreen(L"\tEFI Revision:           %d.%d\n", ST->Hdr.Revision >> 16,
+		ST->Hdr.Revision & ((1 << 16) - 1));
+#if defined(EFI32)
+	PrintToScreen(L"\tPlatform:               32-bit\n");
+#else
+	PrintToScreen(L"\tPlatform:               64-bit\n");
+#endif
+#if defined(X86_64_BLD)
+	CHAR8 CpuNameA[49];
+	CHAR16 CpuName[49];
+	UINT32 *p = (UINT32 *)CpuNameA;
+	UINTN i;
+
+	AsmCpuid(0x80000002, &p[0], &p[1], &p[2], &p[3]);
+	AsmCpuid(0x80000003, &p[4], &p[5], &p[6], &p[7]);
+	AsmCpuid(0x80000004, &p[8], &p[9], &p[10], &p[11]);
+
+	CpuNameA[48] = '\0';
+	for (i = 0; i < 49; i++)
+		CpuName[i] = (CHAR16)CpuNameA[i];
+	PrintToScreen(L"\tProcessor:              %s\n", CpuName);
+#endif
+	PrintToScreen(L"\tInstalled memory:       %d MB\n", MemBytes / (1024 * 1024));
+	PrintToScreen(L"\tScreen Output:          %s\n", ScreenInfo);
+
+	FreePool(ScreenInfo);
+}
+
+void
 ls(CHAR16 *args)
 {
 	EFI_STATUS Status;

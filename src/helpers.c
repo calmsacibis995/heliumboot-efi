@@ -297,3 +297,84 @@ ReadFile(EFI_FILE_PROTOCOL *File, CHAR16 *Buffer, UINTN BufferSize, UINTN *Actua
 	else
 		return (*Actual == 0) ? EFI_NOT_FOUND : EFI_END_OF_FILE;
 }
+
+CHAR16 *
+GetScreenInfo(void)
+{
+	UINTN width, height;
+	CHAR16 *Buffer;
+
+	Buffer = AllocatePool(128 * sizeof(CHAR16));
+	if (!Buffer)
+		return NULL;
+
+	GetScreenSize(&width, &height);
+
+	if (FramebufferAllowed) {
+		UnicodeSPrint(Buffer, 128 * sizeof(CHAR16), L"Using UEFI Framebuffer, %lux%lu", width, height);
+		return Buffer;
+	} else {
+		UnicodeSPrint(Buffer, 128 * sizeof(CHAR16), L"Using BLT, %lux%lu", width, height);
+		return Buffer;
+	}
+}
+
+#if defined(X86_64_BLD)
+void
+AsmCpuid(UINT32 Leaf, UINT32 *Eax, UINT32 *Ebx, UINT32 *Ecx, UINT32 *Edx)
+{
+	UINT32 a, b, c, d;
+
+	__asm__ volatile (
+		"cpuid"
+		: "=a"(a), "=&r"(b), "=c"(c), "=d"(d)
+		: "a"(Leaf), "c"(0)
+	);
+
+	if (Eax)
+		*Eax = a;
+	if (Ebx)
+		*Ebx = b;
+	if (Ecx)
+		*Ecx = c;
+	if (Edx)
+		*Edx = d;
+}
+#endif
+
+UINT64
+GetTotalMemoryBytes(void)
+{
+	EFI_STATUS Status;
+	EFI_MEMORY_DESCRIPTOR *MemMap = NULL;
+	EFI_MEMORY_DESCRIPTOR *Desc;
+	UINTN MemMapSize = 0;
+	UINTN MapKey;
+	UINTN DescSize;
+	UINT32 DescVersion;
+	UINT64 Total = 0;
+	UINTN i;
+
+	Status = uefi_call_wrapper(BS->GetMemoryMap, 5, &MemMapSize, MemMap, &MapKey, &DescSize, &DescVersion);
+	if (Status != EFI_BUFFER_TOO_SMALL)
+		return 0;
+
+	MemMap = AllocatePool(MemMapSize);
+	if (!MemMap)
+		return 0;
+
+	Status = uefi_call_wrapper(BS->GetMemoryMap, 5, &MemMapSize, MemMap, &MapKey, &DescSize, &DescVersion);
+	if (EFI_ERROR(Status)) {
+		FreePool(MemMap);
+		return 0;
+	}
+
+	for (i = 0; i < MemMapSize / DescSize; i++) {
+		Desc = (EFI_MEMORY_DESCRIPTOR *)((UINT8 *)MemMap + (i * DescSize));
+		if (Desc->Type == EfiConventionalMemory)
+			Total += Desc->NumberOfPages * EFI_PAGE_SIZE;
+	}
+
+	FreePool(MemMap);
+	return Total;
+}
