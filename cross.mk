@@ -29,7 +29,7 @@ AARCH64_LD = $(AARCH64_PREFIX)ld
 AARCH64_OBJCOPY = $(AARCH64_PREFIX)objcopy
 
 RISCV64_PREFIX = riscv64-linux-gnu-
-RISCV64_GCC = $(RISCV64_PREFIX)gcc
+RISCV64_CC = $(RISCV64_PREFIX)gcc
 RISCV64_LD = $(RISCV64_PREFIX)ld
 RISCV64_OBJCOPY = $(RISCV64_PREFIX)objcopy
 
@@ -54,7 +54,7 @@ RISCV64_DEV_CFLAGS = $(RISCV64_CFLAGS) -DDEV_BLD
 
 X86_64_LINK_SCRIPT = $(GNU_EFI_DIR)/gnuefi/elf_x86_64_efi.lds
 AARCH64_LINK_SCRIPT = $(GNU_EFI_DIR)/gnuefi/elf_aarch64_efi.lds
-RISCV64_LINK_SCRIPTS = $(GNU_EFI_DIR)/gnuefi/efi_riscv64_efi.lds
+RISCV64_LINK_SCRIPT = $(GNU_EFI_DIR)/gnuefi/elf_riscv64_efi.lds
 
 EFI_OBJCOPY_FLAGS = -j .text -j .sdata -j .data -j .rodata -j .dynamic \
 	-j .dynsym -j .rel -j .rela -j .rel.* -j .rela.* -j .reloc --subsystem=10

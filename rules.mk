@@ -1,15 +1,21 @@
 # Object rules for normal builds
 x86_64/vers.o: x86_64/vers.c
-	$(CC) $(X86_64_CFLAGS) -c $< -o $@
+	$(X86_64_CC) $(X86_64_CFLAGS) -c $< -o $@
 
 aarch64/vers.o: aarch64/vers.c
 	$(AARCH64_CC) $(AARCH64_CFLAGS) -c $< -o $@
 
+riscv64/vers.o: riscv64/vers.c
+	$(RISCV64_CC) $(RISCV64_CFLAGS) -c $< -o $@
+
 x86_64/%.o: src/%.c
-	$(CC) $(X86_64_CFLAGS) -c $< -o $@
+	$(X86_64_CC) $(X86_64_CFLAGS) -c $< -o $@
 
 aarch64/%.o: src/%.c
 	$(AARCH64_CC) $(AARCH64_CFLAGS) -c $< -o $@
+
+riscv64/%.o: src/%.c
+	$(RISCV64_CC) $(RISCV64_CFLAGS) -c $< -o $@
 
 x86_64/boot.so: $(X86_64_OBJS)
 	$(call link_x86_64)
@@ -17,15 +23,18 @@ x86_64/boot.so: $(X86_64_OBJS)
 aarch64/boot.so: $(AARCH64_OBJS)
 	$(call link_aarch64)
 
+riscv64/boot.so: $(RISCV64_OBJS)
+	$(call link_riscv64)
+
 # Object rules for debug/dev builds.
 x86_64/debug_vers.o: x86_64/vers.c
-	$(CC) $(X86_64_DEBUG_CFLAGS) -c $< -o $@
+	$(X86_64_CC) $(X86_64_DEBUG_CFLAGS) -c $< -o $@
 
 aarch64/debug_vers.o: aarch64/vers.c
 	$(AARCH64_CC) $(AARCH64_DEBUG_CFLAGS) -c $< -o $@
 
 x86_64/dev_vers.o: x86_64/vers.c
-	$(CC) $(X86_64_DEV_CFLAGS) -c $< -o $@
+	$(X86_64_CC) $(X86_64_DEV_CFLAGS) -c $< -o $@
 
 aarch64/dev_vers.o: aarch64/vers.c
 	$(AARCH64_CC) $(AARCH64_DEV_CFLAGS) -c $< -o $@
@@ -43,19 +52,19 @@ aarch64/boot_dev.so: $(AARCH64_DEV_OBJS)
 	$(call link_aarch64_dev)
 
 x86_64/debug_%.o: src/%.c
-	$(CC) $(X86_64_DEBUG_CFLAGS) -c $< -o $@
+	$(X86_64_CC) $(X86_64_DEBUG_CFLAGS) -c $< -o $@
 
 aarch64/debug_%.o: src/%.c
 	$(AARCH64_CC) $(AARCH64_DEBUG_CFLAGS) -c $< -o $@
 
 x86_64/dev_%.o: src/%.c
-	$(CC) $(X86_64_DEV_CFLAGS) -c $< -o $@
+	$(X86_64_CC) $(X86_64_DEV_CFLAGS) -c $< -o $@
 
 aarch64/dev_%.o: src/%.c
 	$(AARCH64_CC) $(AARCH64_DEV_CFLAGS) -c $< -o $@
 
 x86_64/boot_debug.efi: x86_64/boot_debug.so
-	objcopy $(EFI_OBJCOPY_FLAGS) --target efi-app-x86_64 $< $@
+	$(X86_64_OBJCOPY) $(EFI_OBJCOPY_FLAGS) --target efi-app-x86_64 $< $@
 
 aarch64/boot_debug.efi: aarch64/boot_debug.so
 	$(AARCH64_OBJCOPY) $(EFI_OBJCOPY_FLAGS) --target efi-app-aarch64 $< $@
@@ -66,8 +75,9 @@ x86_64/boot_dev.efi: x86_64/boot_dev.so
 aarch64/boot_dev.efi: aarch64/boot_dev.so
 	$(AARCH64_OBJCOPY) $(EFI_OBJCOPY_FLAGS) --target efi-app-aarch64 $< $@
 
+# Linking macros.
 define link_x86_64
-ld -shared -Bsymbolic \
+$(X86_64_LD) -shared -Bsymbolic \
 	-L$(X86_64_LIB_DIR)/lib -L$(X86_64_LIB_DIR)/gnuefi \
 	-T$(X86_64_LINK_SCRIPT) \
 	$(X86_64_LIB_DIR)/gnuefi/crt0-efi-x86_64.o \
@@ -82,6 +92,15 @@ $(AARCH64_LD) -shared -Bsymbolic -nostdlib \
 	$(AARCH64_OBJS) -o aarch64/boot.so -lgnuefi -lefi
 endef
 
+define link_riscv64
+$(RISCV64_LD) -shared -Bsymbolic -nostdlib \
+	-L$(RISCV64_LIB_DIR)/lib -L$(RISCV64_LIB_DIR)/gnuefi \
+	-T$(RISCV64_LINK_SCRIPT) \
+	$(RISCV64_LIB_DIR)/gnuefi/crt0-efi-riscv64.o \
+	$(RISCV64_OBJS) -o riscv64/boot.so -lgnuefi -lefi
+endef
+
+# Link macros for dev/debug builds.
 define link_x86_64_dev
 ld -shared -Bsymbolic \
 	-L$(X86_64_LIB_DIR)/lib -L$(X86_64_LIB_DIR)/gnuefi \
@@ -135,9 +154,11 @@ prep_build:
 
 	@if [ ! -d x86_64 ]; then mkdir x86_64; fi
 	@if [ ! -d aarch64 ]; then mkdir aarch64; fi
+	@if [ ! -d riscv64 ]; then mkdir riscv64; fi
 
 	./newvers.sh x86_64 x86_64/vers.c
 	./newvers.sh aarch64 aarch64/vers.c
+	./newvers.sh riscv64 riscv64/vers.c
 
 x86_64_build: prep_build x86_64/boot.efi
 	$(call link_x86_64)
@@ -146,6 +167,10 @@ x86_64_build: prep_build x86_64/boot.efi
 aarch64_build: prep_build aarch64/boot.efi
 	$(call link_aarch64)
 	mcopy -i fat.img aarch64/boot.efi ::/EFI/BOOT/BOOTAA64.EFI
+
+riscv64_build: prep_build riscv64/boot.efi
+	$(call link_riscv64)
+	mcopy -i fat.img riscv64/boot.efi ::/EFI/BOOT/BOOTRISCV.EFI
 
 x86_64_debug_build: prep_build x86_64/boot_debug.efi
 	$(call link_x86_64_debug)

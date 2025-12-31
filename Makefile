@@ -35,6 +35,6 @@ sel_build:
 	@echo "make riscv64_debug_build:  Build HeliumBoot/Debug for 64-bit RISC-V"
 
 clean:
-	rm -rf x86_64 aarch64 fat.img heliumboot.iso iso_root
+	rm -rf x86_64 aarch64 riscv64 fat.img heliumboot.iso iso_root
 
-.PHONY: all sel_build prep_build x86_64_build aarch64_build x86_64_dev_build aarch64_dev_build x86_64_debug_build aarch64_debug_build iso_prep heliumboot.iso clean
+.PHONY: all sel_build prep_build x86_64_build aarch64_build riscv64_build x86_64_dev_build aarch64_dev_build x86_64_debug_build aarch64_debug_build iso_prep heliumboot.iso clean
