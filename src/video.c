@@ -262,17 +262,18 @@ static void
 ColourPixel(INTN x, INTN y, UINTN Colour)
 {
 	UINT32 Pixel;
-	UINT8 Red = (Pixel >> 16) & 0xFF;
-	UINT8 Green = (Pixel >> 8) & 0xFF;
-	UINT8 Blue = (Pixel >> 0) & 0xFF;
+	UINT8 Red, Green, Blue;
 
 	Pixel = Palette32[Colour];
+	Red = (Pixel >> 16) & 0xFF;
+	Green = (Pixel >> 8) & 0xFF;
+	Blue = (Pixel >> 0) & 0xFF;
 
 	if (!FramebufferAllowed) {
 		EFI_GRAPHICS_OUTPUT_BLT_PIXEL p = {
-			.Red = (Pixel >> 16) & 0xFF,
-			.Green = (Pixel >> 8) & 0xFF,
-			.Blue = (Pixel >> 0) & 0xFF,
+			.Red = Red,
+			.Green = Green,
+			.Blue = Blue,
 			.Reserved = 0
 		};
 		uefi_call_wrapper(gop->Blt, 10, gop, &p, EfiBltVideoFill,
@@ -293,10 +294,6 @@ ColourPixel(INTN x, INTN y, UINTN Colour)
 				Fb[2] = Blue;
 				break;
 		}
-
-		Fb[0] = (UINT8)(Pixel & 0xFF);
-		Fb[1] = (UINT8)((Pixel >> 8) & 0xFF);
-		Fb[2] = (UINT8)((Pixel >> 16) & 0xFF);
 
 		if (PixelSize == 4)
 			Fb[3] = 0;	// reserved
