@@ -378,7 +378,6 @@ ScrollScreen(void)
 		UINTN LineBytes = PixelStride;
 		UINTN MoveLines = Screenheight - FONT_HEIGHT;
 		MemMove(Fb, Fb + FONT_HEIGHT * LineBytes, MoveLines * LineBytes);
-		//UINT8 *ClearBase = Fb + MoveLines * LineBytes;
 		for (y = 0; y < FONT_HEIGHT; y++) {
 			for (x = 0; x < Screenwidth; x++)
 				ColourPixel(x, Screenheight - FONT_HEIGHT + y, KBackground);

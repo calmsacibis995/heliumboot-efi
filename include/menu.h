@@ -31,6 +31,17 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+/*
+ * Portions of this code are derived from Symbian's ubootldr, adapted for UEFI,
+ * which can be found here: https://github.com/cdaffara/symbiandump-os1/tree/master/sf/os/kernelhwsrv/brdbootldr/ubootldr
+ *
+ * These portions of code are licensed under the Eclipse Public License v1.0.
+ * It is available at the URL "http://www.eclipse.org/legal/epl-v10.html".
+ *
+ * Copyright (c) 1996-2009 Nokia Corporation and/or its subsidiary(-ies).
+ * All rights reserved.
+ */
+
 #ifndef _MENU_H_
 #define _MENU_H_
 
