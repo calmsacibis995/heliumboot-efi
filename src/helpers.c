@@ -275,7 +275,7 @@ MemMove(void *dst, const void *src, UINTN len)
 }
 
 EFI_STATUS
-ReadFile(EFI_FILE_PROTOCOL *File, CHAR16 Buffer, UINTN BufferSize, UINTN *Actual)
+ReadFile(EFI_FILE_PROTOCOL *File, CHAR16 *Buffer, UINTN BufferSize, UINTN *Actual)
 {
 	EFI_STATUS Status;
 	UINTN ReadSize;

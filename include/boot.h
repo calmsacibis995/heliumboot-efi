@@ -110,7 +110,7 @@ extern void HeliumBootPanic(EFI_STATUS Status, const CHAR16 *fmt, ...);
 extern UINT32 SwapBytes32(UINT32 val);
 extern UINT16 SwapBytes16(UINT16 val);
 extern UINT64 GetTimeSeconds(void);
-extern EFI_STATUS ReadFile(EFI_FILE_PROTOCOL *File, CHAR16 Buffer, UINTN BufferSize, UINTN *Actual);
+extern EFI_STATUS ReadFile(EFI_FILE_PROTOCOL *File, CHAR16 *Buffer, UINTN BufferSize, UINTN *Actual);
 extern void *MemMove(void *dst, const void *src, UINTN len);
 
 // loadfile.c
@@ -139,6 +139,7 @@ extern struct fs_tab_entry fs_tab[];
 
 // video.c
 extern EFI_STATUS InitVideo(void);
+extern void ClearScreen(void);
 extern void PrintToScreen(const CHAR16 *Fmt, ...);
 extern void InputToScreen(CHAR16 *Prompt, CHAR16 *InStr, UINTN StrLen);
 extern void InitProgressBar(INTN Id, UINTN BarLimit, CONST CHAR8 *Buffer);

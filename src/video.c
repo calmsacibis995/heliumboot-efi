@@ -79,6 +79,7 @@
 #include "boot.h"
 
 static EFI_GRAPHICS_OUTPUT_PROTOCOL *gop = NULL;
+static EFI_GRAPHICS_OUTPUT_BLT_PIXEL *Shadow;
 
 UINT8 *Screen;
 UINTN Screenwidth;
@@ -258,6 +259,20 @@ static const UINT8 Font[NUM_FONTS][FONT_HEIGHT] = {
 static void InputToScreen_Internal(SIMPLE_INPUT_INTERFACE *ConIn,
 	CHAR16 *Prompt, CHAR16 *InStr, UINTN StrLen);
 
+void
+FlushScreen(void)
+{
+	EFI_STATUS Status;
+
+	if (!Shadow || !gop || FramebufferAllowed)
+		return;
+
+	Status = uefi_call_wrapper(gop->Blt, 10, gop, Shadow, EfiBltBufferToVideo,
+		0, 0, 0, 0, Screenwidth, Screenheight, Screenwidth * sizeof(EFI_GRAPHICS_OUTPUT_BLT_PIXEL));
+	if (EFI_ERROR(Status))
+		PrintToScreen(L"FlushScreen() failed: %r\n", Status);
+}
+
 static void
 ColourPixel(INTN x, INTN y, UINTN Colour)
 {
@@ -267,17 +282,14 @@ ColourPixel(INTN x, INTN y, UINTN Colour)
 	Pixel = Palette32[Colour];
 	Red = (Pixel >> 16) & 0xFF;
 	Green = (Pixel >> 8) & 0xFF;
-	Blue = (Pixel >> 0) & 0xFF;
+	Blue = Pixel & 0xFF;
 
 	if (!FramebufferAllowed) {
-		EFI_GRAPHICS_OUTPUT_BLT_PIXEL p = {
-			.Red = Red,
-			.Green = Green,
-			.Blue = Blue,
-			.Reserved = 0
-		};
-		uefi_call_wrapper(gop->Blt, 10, gop, &p, EfiBltVideoFill,
-			0, 0, x, y, 1, 1, 0);
+		// Write to shadow buffer.
+		Shadow[y * Screenwidth + x].Red = Red;
+		Shadow[y * Screenwidth + x].Green = Green;
+		Shadow[y * Screenwidth + x].Blue = Blue;
+		Shadow[y * Screenwidth + x].Reserved = 0;
 	} else {
 		UINT8 *Fb = Screen;
 		Fb = Screen + (y * PixelsPerScanLine + x) * PixelSize;
@@ -292,6 +304,17 @@ ColourPixel(INTN x, INTN y, UINTN Colour)
 				Fb[0] = Red;
 				Fb[1] = Green;
 				Fb[2] = Blue;
+				break;
+			case PixelBitMask:
+				Fb[0] = (Pixel & gop->Mode->Info->PixelInformation.RedMask) >> 16;
+				Fb[1] = (Pixel & gop->Mode->Info->PixelInformation.GreenMask) >> 8;
+				Fb[2] = Pixel & gop->Mode->Info->PixelInformation.BlueMask;
+				break;
+			case PixelBltOnly:
+				// We have no direct framebuffer access.
+				break;
+			default:
+				// Unsupported pixel format.
 				break;
 		}
 
@@ -313,6 +336,9 @@ ClearScreen(void)
 	XPos = 0;
 	YPos = 0;
 	Colours = (KForeground << 8) | KBackground;
+
+	if (!FramebufferAllowed)
+		FlushScreen();
 }
 
 void
@@ -341,14 +367,22 @@ ScrollScreen(void)
 	UINT8 *Fb = Screen;
 	INTN x, y;
 
-	MemMove(Fb, Fb + (Screenwidth*PixelSize * FONT_HEIGHT),
-		(Screenwidth * PixelSize * (Screenheight - (2 * FONT_HEIGHT)) - (Screenwidth * PixelSize * FONT_HEIGHT)));
-	Fb += (Screenwidth*PixelSize*(Screenheight-(2*FONT_HEIGHT))-(Screenwidth*PixelSize*FONT_HEIGHT));
+	if (!FramebufferAllowed) {
+		MemMove(Shadow, Shadow + Screenwidth * FONT_HEIGHT, (Screenheight - FONT_HEIGHT) * Screenwidth * sizeof(EFI_GRAPHICS_OUTPUT_BLT_PIXEL));
+		EFI_GRAPHICS_OUTPUT_BLT_PIXEL ClearPixel = { .Red = 0, .Green = 0, .Blue = 0, .Reserved = 0 };
+		uefi_call_wrapper(gop->Blt, 10, gop, &ClearPixel, EfiBltVideoFill,
+			0, 0, 0, Screenheight - FONT_HEIGHT, Screenwidth, FONT_HEIGHT, 0);
+		FlushScreen();
+	} else {
+		MemMove(Fb, Fb + (Screenwidth*PixelSize * FONT_HEIGHT),
+			(Screenwidth * PixelSize * (Screenheight - (2 * FONT_HEIGHT)) - (Screenwidth * PixelSize * FONT_HEIGHT)));
+		Fb += (Screenwidth*PixelSize*(Screenheight-(2*FONT_HEIGHT))-(Screenwidth*PixelSize*FONT_HEIGHT));
 
-	INTN StartLine = Screenheight - (4 * FONT_HEIGHT);
-	for (y = StartLine; y < StartLine + FONT_HEIGHT; y++) {
-		for (x = 0; x < Screenwidth; x++)
-			ColourPixel(x, y, KBackground);
+		INTN StartLine = Screenheight - (4 * FONT_HEIGHT);
+		for (y = StartLine; y < StartLine + FONT_HEIGHT; y++) {
+			for (x = 0; x < Screenwidth; x++)
+				ColourPixel(x, y, KBackground);
+		}
 	}
 }
 
@@ -358,10 +392,18 @@ ScrollScreenDown(void)
 	INTN x, y;
 	UINT8 *Fb = Screen;
 
-	MemMove(Fb + (Screenwidth*PixelSize * FONT_HEIGHT), Fb, (Screenwidth * PixelSize * (Screenheight - (2 * FONT_HEIGHT)) - (Screenwidth * PixelSize * FONT_HEIGHT)));
-	for (y = 0; y < FONT_HEIGHT; y++) {
-		for (x = 0; x < Screenwidth; x++)
-			ColourPixel(x, y, KBackground);
+	if (!FramebufferAllowed) {
+		MemMove(Shadow + Screenwidth, Shadow, (Screenheight - 1) * Screenwidth * sizeof(EFI_GRAPHICS_OUTPUT_BLT_PIXEL));
+		EFI_GRAPHICS_OUTPUT_BLT_PIXEL ClearPixel = {0, 0, 0, 0};
+		uefi_call_wrapper(gop->Blt, 10, gop, &ClearPixel, EfiBltVideoFill,
+			0, 0, 0, 0, Screenwidth, FONT_HEIGHT, 0);
+		FlushScreen();
+	} else {
+		MemMove(Fb + (Screenwidth*PixelSize * FONT_HEIGHT), Fb, (Screenwidth * PixelSize * (Screenheight - (2 * FONT_HEIGHT)) - (Screenwidth * PixelSize * FONT_HEIGHT)));
+		for (y = 0; y < FONT_HEIGHT; y++) {
+			for (x = 0; x < Screenwidth; x++)
+				ColourPixel(x, y, KBackground);
+		}
 	}
 }
 
@@ -449,6 +491,10 @@ PutString(const CHAR8 *s)
 {
 	while (*s)
 		PutChar(*s++);
+
+	// Flush only once per string.
+	if (!FramebufferAllowed)
+		FlushScreen();
 }
 
 void
@@ -456,25 +502,19 @@ PrintToScreen(const CHAR16 *Fmt, ...)
 {
 	INTN i;
 	CHAR16 Buffer[1024];
+	CHAR8 AsciiBuffer[1024];
 	va_list va;
 
 	va_start(va, Fmt);
 	UnicodeVSPrint(Buffer, sizeof(Buffer), Fmt, va);
 	va_end(va);
 
-	// Convert the string to ASCII for PutChar().
-	// Then print each character one by one.
-	for (i = 0; Buffer[i] != L'\0'; i++) {
-		CHAR16 ch = Buffer[i];
-		if (ch < 0x80)
-			PutChar((UINT8)ch);
-		else
-			PutChar('?');
-	}
+	// Convert the string to ASCII for PutString().
+	for (i = 0; Buffer[i] != L'\0' && i < sizeof(AsciiBuffer) - 1; i++)
+		AsciiBuffer[i] = (Buffer[i] < 0x80) ? (CHAR8)Buffer[i] : '?';
 
-#if defined(DEBUG_BLD)
-	DEBUG((DEBUG_INFO, Buffer));
-#endif
+	AsciiBuffer[i] = '\0';
+	PutString(AsciiBuffer);
 }
 
 void
@@ -567,6 +607,7 @@ UpdateProgressBar(INTN Id, UINTN NewProgress)
 	INTN line = Id ? PROGRESSBAR0_ROW : PROGRESSBAR1_ROW;
 	UINTN old_pixels = Pixels[Id];
 
+#if defined(DEBUG_BLD)
 	if (Id == 0) {
 		UINT64 timenow;
 
@@ -605,6 +646,7 @@ UpdateProgressBar(INTN Id, UINTN NewProgress)
 		XPos = savedXPos;
 		YPos = savedYPos;
 	}
+#endif
 
 	Progress[Id] = NewProgress;
 	INT64 prog64 = NewProgress;
@@ -687,6 +729,10 @@ InitVideo(void)
 		return Status;
 	}
 
+	Screenwidth = gop->Mode->Info->HorizontalResolution;
+	Screenheight = gop->Mode->Info->VerticalResolution;
+	PixelsPerScanLine = gop->Mode->Info->PixelsPerScanLine;
+
 	switch (gop->Mode->Info->PixelFormat) {
 		case PixelBlueGreenRedReserved8BitPerColor:
 			PixelSize = 4;
@@ -702,17 +748,19 @@ InitVideo(void)
 			Print(L"GOP is BLT-only - direct framebuffer access disabled!\n");
 #endif
 			FramebufferAllowed = FALSE;
+
+			// Allocate shadow buffer.
+			Shadow = AllocateZeroPool(Screenwidth * Screenheight * sizeof(EFI_GRAPHICS_OUTPUT_BLT_PIXEL));
+			if (!Shadow)
+				return EFI_OUT_OF_RESOURCES;
 			break;
 		default:
 			Print(L"Unsupported pixel format %lu!\n", gop->Mode->Info->PixelFormat);
 			return EFI_UNSUPPORTED;
 	}
 
-	Screen = (UINT8 *)gop->Mode->FrameBufferBase;
-
-	Screenwidth = gop->Mode->Info->HorizontalResolution;
-	Screenheight = gop->Mode->Info->VerticalResolution;
-	PixelsPerScanLine = gop->Mode->Info->PixelsPerScanLine;
+	if (FramebufferAllowed)
+		Screen = (UINT8 *)gop->Mode->FrameBufferBase;
 
 	ClearScreen();
 

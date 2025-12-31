@@ -78,17 +78,7 @@ boot_efi(CHAR16 *args)
 void
 cls(CHAR16 *args)
 {
-	EFI_STATUS Status;
-
-	// Reset console output.
-	Status = uefi_call_wrapper(ST->ConOut->Reset, 2, ST->ConOut, TRUE);
-	if (EFI_ERROR(Status))
-		PrintToScreen(L"Warning: Failed to reset console: %r\n", Status);
-
-	// Clear the screen.
-	Status = uefi_call_wrapper(ST->ConOut->ClearScreen, 1, ST->ConOut);
-	if (EFI_ERROR(Status))
-		PrintToScreen(L"Failed to clear screen: %r\n", Status);
+	ClearScreen();
 }
 
 void
