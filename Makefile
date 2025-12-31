@@ -2,7 +2,8 @@ include cross.mk
 
 # Common source files.
 SOURCES = src/commands.c src/loadfile.c src/cmd_table.c src/fs_table.c \
-	src/boot.c src/video.c src/vtoc.c src/bfs.c src/s5fs.c src/helpers.c
+	src/boot.c src/video.c src/vtoc.c src/bfs.c src/s5fs.c src/helpers.c \
+	src/menu.c
 
 X86_64_OBJS = $(patsubst src/%.c,x86_64/%.o,$(SOURCES)) x86_64/vers.o
 AARCH64_OBJS = $(patsubst src/%.c,aarch64/%.o,$(SOURCES)) aarch64/vers.o

@@ -37,6 +37,7 @@
 #include "boot.h"
 #include "vtoc.h"
 #include "part.h"
+#include "menu.h"
 
 static CHAR16 filepath[256] = {0};			// bootloader file path
 UINTN bufsize = sizeof(filepath);
@@ -50,7 +51,6 @@ efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
 	EFI_STATUS Status;
 	EFI_LOADED_IMAGE *LoadedImage;
 	EFI_FILE_IO_INTERFACE *FileSystem;
-	BOOLEAN matched_command;
 	EFI_GUID LoadedImageProtocol = EFI_LOADED_IMAGE_PROTOCOL_GUID;
 	EFI_GUID FileSystemProtocol = EFI_SIMPLE_FILE_SYSTEM_PROTOCOL_GUID;
 	struct svr4_vtoc *Vtoc = NULL;
@@ -129,17 +129,23 @@ efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
 		HeliumBootPanic(Status, L"Could not open filesystem\n");
 	}
 
-#if defined(DEBUG_BLD) || defined(DEV_BLD)
-	PrintToScreen(L"\nKyasarin %s (commit %s)\n", getrevision(), getcommitno());	// Yes, we name stuff after Nintendo characters.
-#else
-	PrintToScreen(L"\n%s\n", getversion());
-#endif
+	StartMenu();
 
-	// HeliumBoot main loop.
+	uefi_call_wrapper(BS->FreePool, 1, HandleBuffer);
+
+	return EFI_SUCCESS;
+}
+
+void
+CommandMonitor(void)
+{
 	for (;;) {
-		matched_command = FALSE;
+		BOOLEAN matched_command = FALSE;
 		CHAR16 *command, *arguments;
 		struct boot_command_tab *cmd_table_ptr;
+
+		ClearScreen();
+		PrintToScreen(L"You are now in the Command Monitor. Type '?' or 'help' for a list of commands.\n\n");
 
 		PrintToScreen(L">> ");
 		InputToScreen(L"", filepath, sizeof(filepath) / sizeof(CHAR16));
@@ -166,14 +172,12 @@ efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
 			}
 		}
 
-		if (exit_flag)
+		if (exit_flag) {
+			exit_flag = FALSE;	// Reset the exit flag.
 			break;
+		}
 
 		if (!matched_command)
 			PrintToScreen(L"Unknown command. Type '?' or 'help' for a list of built-in commands.\n");
 	}
-
-	uefi_call_wrapper(BS->FreePool, 1, HandleBuffer);
-
-	return EFI_SUCCESS;
 }

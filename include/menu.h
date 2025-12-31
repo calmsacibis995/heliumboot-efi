@@ -37,10 +37,22 @@
 #include <efi.h>
 #include <efilib.h>
 
-typedef void (*MenuHandlingFuncPtr)();
+typedef void (*DisplayFuncPtr)(void);
+typedef void (*ProcessKeyFuncPtr)(EFI_INPUT_KEY *Key);
+typedef void (*MenuHandlingFuncPtr)(UINT32 Param1, UINT32 Param2);
+
+struct DisplayProcess {
+	DisplayFuncPtr DisplayFn;
+	ProcessKeyFuncPtr ProcessKey;
+};
 
 struct MenuItem {
 	CHAR16 *Name;
+	MenuHandlingFuncPtr MenuFunc;
+	UINT32 Param1;
+	UINT32 Param2;
 };
+
+extern void StartMenu(void);
 
 #endif /* _MENU_H_ */

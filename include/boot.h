@@ -90,6 +90,8 @@ struct BootHeader {
 // Global functions and variables, sorted by filename.
 
 // vers.c
+extern const CHAR16 *getdate(void);
+extern const CHAR16 *getvernum(void);
 extern const CHAR16 *getversion(void);
 extern const CHAR16 *getrevision(void);
 extern const CHAR16 *getblddate(void);
@@ -100,6 +102,7 @@ extern const CHAR16 *getbuildno(void);
 // boot.c
 extern BOOLEAN exit_flag;
 extern EFI_HANDLE gImageHandle;
+extern void CommandMonitor(void);
 
 // helpers.c
 extern UINTN StrDecimalToUintn(CHAR16 *str);
@@ -146,6 +149,7 @@ extern struct fs_tab_entry fs_tab[];
 // video.c
 extern EFI_STATUS InitVideo(void);
 extern void ClearScreen(void);
+extern void SetPos(INTN X, INTN Y);
 extern void PrintToScreen(const CHAR16 *Fmt, ...);
 extern void InputToScreen(CHAR16 *Prompt, CHAR16 *InStr, UINTN StrLen);
 extern void InitProgressBar(INTN Id, UINTN BarLimit, CONST CHAR8 *Buffer);

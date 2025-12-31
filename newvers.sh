@@ -72,14 +72,28 @@ static const CHAR16 version[] = L"Kyasarin ${rmj}.${rmi} ${mach} (Dev)   ${t}";
 #elif defined(DEBUG_BLD) && defined(DEV_BLD)
 static const CHAR16 version[] = L"Kyasarin ${rmj}.${rmi} ${mach} (Dev/Debug)   ${t}";
 #else
-static const CHAR16 version[] = L"HeliumBoot Version ${mj}.${mi} ${mach}   ${d}";
+static const CHAR16 version[] = L"HeliumBoot ${mj}.${mi} ${mach} (Release)   ${d}";
 #endif
 
+static const CHAR16 date[] = L"${d}";
+static const CHAR16 vernum[] = L"${mj}.${mi}.${rmi}";
 static const CHAR16 revision[] = L"${rmj}.${rmi}";
 static const CHAR16 blddate[] = L"${ti}";
 static const CHAR16 revdate[] = L"${revd}";
 static const CHAR16 commitno[] = L"${commit}";
 static const CHAR16 buildno[] = L"${mj}.${mi}.${rmi}.${br}.${d2}";
+
+const CHAR16 *
+getdate(void)
+{
+	return date;
+}
+
+const CHAR16 *
+getvernum(void)
+{
+	return vernum;
+}
 
 const CHAR16 *
 getversion(void)

@@ -446,7 +446,7 @@ CurLeft(void)
 	}
 }
 
-static void
+void
 SetPos(INTN X, INTN Y)
 {
 	XPos = X;
