@@ -117,8 +117,10 @@ hinv(CHAR16 *args)
 		ST->Hdr.Revision & ((1 << 16) - 1));
 #if defined(EFI32)
 	PrintToScreen(L"\tPlatform:               32-bit\n");
-#else
+#elif defined(EFI64)
 	PrintToScreen(L"\tPlatform:               64-bit\n");
+#else
+	PrintToScreen(L"\tPlatform:               unknown\n");
 #endif
 #if defined(X86_64_BLD)
 	CHAR8 CpuNameA[49];
@@ -126,9 +128,9 @@ hinv(CHAR16 *args)
 	UINT32 *p = (UINT32 *)CpuNameA;
 	UINTN i;
 
-	AsmCpuid(0x80000002, &p[0], &p[1], &p[2], &p[3]);
-	AsmCpuid(0x80000003, &p[4], &p[5], &p[6], &p[7]);
-	AsmCpuid(0x80000004, &p[8], &p[9], &p[10], &p[11]);
+	AsmCpuid(0x80000002, 0, &p[0], &p[1], &p[2], &p[3]);
+	AsmCpuid(0x80000003, 0, &p[4], &p[5], &p[6], &p[7]);
+	AsmCpuid(0x80000004, 0, &p[8], &p[9], &p[10], &p[11]);
 
 	CpuNameA[48] = '\0';
 	for (i = 0; i < 49; i++)

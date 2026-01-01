@@ -117,7 +117,7 @@ extern EFI_STATUS ReadFile(EFI_FILE_PROTOCOL *File, CHAR16 *Buffer, UINTN Buffer
 extern void *MemMove(void *dst, const void *src, UINTN len);
 extern CHAR16 *GetScreenInfo(void);
 #if defined(X86_64_BLD)
-extern void AsmCpuid(UINT32 Leaf, UINT32 *Eax, UINT32 *Ebx, UINT32 *Ecx, UINT32 *Edx);
+extern void AsmCpuid(UINT32 Leaf, UINT32 subleaf, UINT32 *Eax, UINT32 *Ebx, UINT32 *Ecx, UINT32 *Edx);
 #endif
 extern UINT64 GetTotalMemoryBytes(void);
 

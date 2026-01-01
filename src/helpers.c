@@ -321,14 +321,17 @@ GetScreenInfo(void)
 
 #if defined(X86_64_BLD)
 void
-AsmCpuid(UINT32 Leaf, UINT32 *Eax, UINT32 *Ebx, UINT32 *Ecx, UINT32 *Edx)
+AsmCpuid(UINT32 Leaf, UINT32 subleaf, UINT32 *Eax, UINT32 *Ebx, UINT32 *Ecx, UINT32 *Edx)
 {
 	UINT32 a, b, c, d;
 
 	__asm__ volatile (
-		"cpuid"
+		"xchg %%ebx, %1\n\t"
+		"cpuid\n\t"
+		"xchg %%ebx, %1\n\t"
 		: "=a"(a), "=&r"(b), "=c"(c), "=d"(d)
-		: "a"(Leaf), "c"(0)
+		: "a"(Leaf), "c"(subleaf)
+		: "cc"
 	);
 
 	if (Eax)
@@ -355,18 +358,35 @@ GetTotalMemoryBytes(void)
 	UINT64 Total = 0;
 	UINTN i;
 
-	Status = uefi_call_wrapper(BS->GetMemoryMap, 5, &MemMapSize, MemMap, &MapKey, &DescSize, &DescVersion);
+	// Initial probe.
+	Status = uefi_call_wrapper(BS->GetMemoryMap, 5, &MemMapSize, NULL,
+		&MapKey, &DescSize, &DescVersion);
 	if (Status != EFI_BUFFER_TOO_SMALL)
 		return 0;
 
-	MemMap = AllocatePool(MemMapSize);
-	if (!MemMap)
-		return 0;
+	/*
+	 * Some computers with older firmware REQUIRE more space.
+	 * This code has been tested with an early 2009 A1181 MacBook,
+	 * with EFI revision 1.10.
+	 */
+	MemMapSize += 2 * DescSize;
 
-	Status = uefi_call_wrapper(BS->GetMemoryMap, 5, &MemMapSize, MemMap, &MapKey, &DescSize, &DescVersion);
-	if (EFI_ERROR(Status)) {
-		FreePool(MemMap);
-		return 0;
+	for (;;) {
+		MemMap = AllocatePool(MemMapSize);
+		if (!MemMap)
+			return 0;
+		Status = uefi_call_wrapper(BS->GetMemoryMap, 5, &MemMapSize, MemMap,
+			&MapKey, &DescSize, &DescVersion);
+		if (Status == EFI_BUFFER_TOO_SMALL) {
+			FreePool(MemMap);
+			MemMapSize += 2 * DescSize;
+			continue;
+		}
+		if (EFI_ERROR(Status)) {
+			FreePool(MemMap);
+			return 0;
+		}
+		break;
 	}
 
 	for (i = 0; i < MemMapSize / DescSize; i++) {
