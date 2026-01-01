@@ -219,6 +219,10 @@ init_simplefs:
 		goto cleanup;
 	}
 
+	// Skip disk-specific stuff and use Simple File System protocol if we are booting from CD/DVD.
+	if (BlockIo->Media->RemovableMedia && !BlockIo->Media->LogicalPartition)
+		goto init_simplefs;
+
 	Status = GetPartitionData(BlockIo, Partitions);
 	if (EFI_ERROR(Status)) {
 		PrintToScreen(L"Error: Cannot get partition data: %r\n", Status);
