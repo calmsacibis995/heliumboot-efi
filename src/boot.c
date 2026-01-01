@@ -35,8 +35,6 @@
 #include <efilib.h>
 
 #include "boot.h"
-#include "vtoc.h"
-#include "part.h"
 #include "menu.h"
 
 static CHAR16 filepath[256] = {0};			// bootloader file path
