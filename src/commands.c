@@ -41,7 +41,7 @@ void
 about(CHAR16 *args)
 {
 	PrintToScreen(L"HeliumBoot/EFI - The HeliumOS boot loader\n");
-	PrintToScreen(L"Copyright (c) 2025 Stefanos Stefanidis.\n");
+	PrintToScreen(L"Copyright (c) 2025, 2026 Stefanos Stefanidis.\n");
 	PrintToScreen(L"All rights reserved.\n");
 	PrintToScreen(L"Version %s\n", getbuildno());
 	PrintToScreen(L"Internal revision %s, %s\n", getrevision(), getrevdate());
@@ -115,9 +115,9 @@ hinv(CHAR16 *args)
 		ST->FirmwareRevision >> 16, ST->FirmwareRevision & ((1 << 16) - 1));
 	PrintToScreen(L"\tEFI Revision:           %d.%d\n", ST->Hdr.Revision >> 16,
 		ST->Hdr.Revision & ((1 << 16) - 1));
-#if defined(EFI32)
+#if defined(IA32_BLD)
 	PrintToScreen(L"\tPlatform:               32-bit\n");
-#elif defined(EFI64)
+#elif defined(X86_64_BLD) || defined(AARCH64_BLD) || defined(RISCV64_BLD)
 	PrintToScreen(L"\tPlatform:               64-bit\n");
 #else
 	PrintToScreen(L"\tPlatform:               unknown\n");
@@ -140,6 +140,7 @@ hinv(CHAR16 *args)
 	PrintToScreen(L"\tInstalled memory:       %d MB\n", MemBytes / (1024 * 1024));
 	PrintToScreen(L"\tScreen Output:          %s\n", ScreenInfo);
 
+	// GetScreenInfo() allocates memory. Free it.
 	FreePool(ScreenInfo);
 }
 
@@ -165,6 +166,7 @@ ls(CHAR16 *args)
 	struct fs_tab_entry *fs_entry_ptr;
 	VOID *mount_ctx = NULL;
 	BOOLEAN detected_by_plugin = FALSE;
+	struct mbr_partition *Partitions = NULL;
 
 	if (args && StrnCmp(args, L"sd(", 3) == 0) {
 		CHAR16 *p = args + 3;
@@ -196,6 +198,7 @@ ls(CHAR16 *args)
 		DriveIndex = args[0] - L'0';
 		Path = &args[3];
 	} else {
+init_simplefs:
 		Status = uefi_call_wrapper(BS->HandleProtocol, 3, gImageHandle, &LoadedImageProtocol, (void **)&LoadedImage);
 		if (EFI_ERROR(Status)) {
 			PrintToScreen(L"Failed to get LoadedImage protocol: %r\n", Status);
@@ -229,10 +232,16 @@ ls(CHAR16 *args)
 		goto cleanup;
 	}
 
-	Status = FindPartitionStart(BlockIo, &PartitionStart);
+	Status = GetPartitionData(BlockIo, Partitions);
 	if (EFI_ERROR(Status)) {
-		PrintToScreen(L"Error: Cannot find partition start: %r\n", Status);
-		goto cleanup;
+		PrintToScreen(L"Error: Cannot get partition data: %r\n", Status);
+		goto init_simplefs;		// Fallback to native EFI API on failure.
+	}
+
+	Status = FindSysVPartition(Partitions, &PartitionStart);
+	if (EFI_ERROR(Status)) {
+		PrintToScreen(L"No System V partition detected.\n");
+		goto init_simplefs;		// Fallback to native EFI API on failure.
 	}
 
 	Status = ReadVtoc(Vtoc, BlockIo, PartitionStart);

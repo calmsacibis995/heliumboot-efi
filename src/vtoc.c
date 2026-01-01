@@ -1,7 +1,7 @@
 /*
  * HeliumBoot/EFI - A simple UEFI bootloader.
  *
- * Copyright (c) 2025 Stefanos Stefanidis.
+ * Copyright (c) 2025, 2026 Stefanos Stefanidis.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -63,36 +63,36 @@ ReadVtoc(struct svr4_vtoc *OutVtoc, EFI_BLOCK_IO_PROTOCOL *BlockIo, UINT32 Parti
     Status = uefi_call_wrapper(BlockIo->ReadBlocks, 5, BlockIo, Media->MediaId, PdinfoLba,
     	BlockSize, Buffer);
     if (EFI_ERROR(Status)) {
-        Print(L"Failed to read VTOC: %r\n", Status);
-        gBS->FreePool(Buffer);
+        PrintToScreen(L"Failed to read VTOC: %r\n", Status);
+        uefi_call_wrapper(gBS->FreePool, 1, Buffer);
         return Status;
     }
 
     struct svr4_pdinfo *Pdinfo = (struct svr4_pdinfo *)Buffer;
     if (Pdinfo->sanity != VALID_PD) {
         PrintToScreen(L"Error: pdinfo is not sane (0x%X)\n", Pdinfo->sanity);
-        gBS->FreePool(Buffer);
+        uefi_call_wrapper(gBS->FreePool, 1, Buffer);
         return EFI_COMPROMISED_DATA;
     }
 
     struct svr4_vtoc *Vtoc = (struct svr4_vtoc *)(Buffer + sizeof(struct svr4_pdinfo));
     if (Vtoc->v_sanity != VTOC_SANE) {
         PrintToScreen(L"Error: VTOC is not sane (0x%X)\n", Vtoc->v_sanity);
-        gBS->FreePool(Buffer);
+        uefi_call_wrapper(gBS->FreePool, 1, Buffer);
         return EFI_COMPROMISED_DATA;
 
     }
 
     if (Vtoc->v_version != V_VERSION) {
         PrintToScreen(L"Error: VTOC version mismatch (0x%X)\n", Vtoc->v_version);
-        gBS->FreePool(Buffer);
+        uefi_call_wrapper(gBS->FreePool, 1, Buffer);
         return EFI_COMPROMISED_DATA;
     }
 
     OutVtoc = AllocateZeroPool(sizeof(struct svr4_vtoc));
     if (!OutVtoc) {
         PrintToScreen(L"Failed to allocate memory for VTOC\n");
-        gBS->FreePool(Buffer);
+        uefi_call_wrapper(gBS->FreePool, 1, Buffer);
         return EFI_OUT_OF_RESOURCES;
     }
 

@@ -35,6 +35,7 @@
 #define _BOOT_H_
 
 #include "vtoc.h"
+#include "part.h"
 
 enum arg_type {
     CMD_NO_ARGS,
@@ -108,7 +109,8 @@ extern void CommandMonitor(void);
 extern UINTN StrDecimalToUintn(CHAR16 *str);
 extern void SplitCommandLine(CHAR16 *line, CHAR16 **command, CHAR16 **arguments);
 extern EFI_STATUS MountAtLba(EFI_BLOCK_IO_PROTOCOL *ParentBlockIo, EFI_LBA StartLba, EFI_SIMPLE_FILE_SYSTEM_PROTOCOL **FileSystem);
-extern EFI_STATUS FindPartitionStart(EFI_BLOCK_IO_PROTOCOL *BlockIo, UINT32 *PartitionStart);
+extern EFI_STATUS FindSysVPartition(struct mbr_partition *Partitions, UINT32 *PartitionStart);
+extern EFI_STATUS GetPartitionData(EFI_BLOCK_IO_PROTOCOL *BlockIo, struct mbr_partition *Partitions);
 extern void HeliumBootPanic(EFI_STATUS Status, const CHAR16 *fmt, ...);
 extern UINT32 SwapBytes32(UINT32 val);
 extern UINT16 SwapBytes16(UINT16 val);

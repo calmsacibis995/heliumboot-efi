@@ -125,12 +125,30 @@ MountAtLba(EFI_BLOCK_IO_PROTOCOL *ParentBlockIo, EFI_LBA StartLba, EFI_SIMPLE_FI
 }
 
 EFI_STATUS
-FindPartitionStart(EFI_BLOCK_IO_PROTOCOL *BlockIo, UINT32 *PartitionStart)
+FindSysVPartition(struct mbr_partition *Partitions, UINT32 *PartitionStart)
+{
+	UINTN i;
+
+	for (i = 0; i < 4; i++) {
+		if (Partitions[i].os_type == 0x63) {
+			*PartitionStart = Partitions[i].starting_lba;
+			PrintToScreen(L"Found System V partition at LBA %u\n", *PartitionStart);
+			return EFI_SUCCESS;
+		}
+	}
+
+	return EFI_NOT_FOUND;
+}
+
+/*
+ * Find the start of the partition list.
+ */
+EFI_STATUS
+GetPartitionData(EFI_BLOCK_IO_PROTOCOL *BlockIo, struct mbr_partition *Partitions)
 {
 	EFI_STATUS Status;
 	UINTN BlockSize = BlockIo->Media->BlockSize;
 	UINT8 *MbrBuffer;
-	struct mbr_partition *Partitions;
 
 	if (BlockIo->Media->LogicalPartition) {
 		PrintToScreen(L"The drive chosen is not a drive.\n");
@@ -160,18 +178,8 @@ FindPartitionStart(EFI_BLOCK_IO_PROTOCOL *BlockIo, UINT32 *PartitionStart)
 
 	Partitions = (struct mbr_partition *)(MbrBuffer + 0x1BE);
 
-	for (int i = 0; i < 4; i++) {
-		if (Partitions[i].os_type == 0x63) {
-			*PartitionStart = Partitions[i].starting_lba;
-			PrintToScreen(L"Found System V partition at LBA %u\n", *PartitionStart);
-			FreePool(MbrBuffer);
-			return EFI_SUCCESS;
-		}
-	}
-
-	PrintToScreen(L"No System V partition found in MBR\n");
 	FreePool(MbrBuffer);
-	return EFI_NOT_FOUND;
+	return EFI_SUCCESS;
 }
 
 /*
@@ -206,12 +214,12 @@ HeliumBootPanic(EFI_STATUS Status, const CHAR16 *fmt, ...)
 		UnicodeVSPrint(Buffer, sizeof(Buffer), fmt, va);
 		PrintToScreen(Buffer);
 		PrintToScreen(L"\nEFI status: 0x%X (%r)\n", Status, Status);
-		PrintToScreen(L"Press any key to exit HeliumBoot...\n");
+		PrintToScreen(L"Press any key to restart...\n");
 	} else {
 		Print(L"HeliumBoot panic: ");
 		VPrint(fmt, va);
 		Print(L"\nEFI status: 0x%X (%r)\n", Status, Status);
-		Print(L"Press any key to exit HeliumBoot...\n");
+		Print(L"Press any key to restart...\n");
 	}
 
 	va_end(va);
@@ -220,9 +228,9 @@ HeliumBootPanic(EFI_STATUS Status, const CHAR16 *fmt, ...)
 	uefi_call_wrapper(BS->WaitForEvent, 3, 1, &ev, &index);
 	uefi_call_wrapper(ST->ConIn->ReadKeyStroke, 2, ST->ConIn, &Key);
 	uefi_call_wrapper(ST->ConIn->Reset, 2, ST->ConIn, FALSE);
-	uefi_call_wrapper(BS->Exit, 3, gImageHandle, Status, 0, NULL);
+	uefi_call_wrapper(RT->ResetSystem, 4, EfiResetCold, EFI_SUCCESS, 0, NULL);
 
-	// Infinite loop in case we fail to exit.
+	// Infinite loop in case we fail to restart.
 	for (;;)
 		;
 }
@@ -255,6 +263,7 @@ GetTimeSeconds(void)
 void *
 MemMove(void *dst, const void *src, UINTN len)
 {
+	UINTN i;
 	UINT8 *d = (UINT8 *)dst;
 	const UINT8 *s = (const UINT8 *)src;
 
@@ -263,11 +272,11 @@ MemMove(void *dst, const void *src, UINTN len)
 
 	if (d < s) {
 		// Forward copy
-		for (UINTN i = 0; i < len; i++)
+		for (i = 0; i < len; i++)
 			d[i] = s[i];
 	} else {
 		// Backward copy
-		for (UINTN i = len; i != 0; i--)
+		for (i = len; i != 0; i--)
 			d[i - 1] = s[i - 1];
 	}
 

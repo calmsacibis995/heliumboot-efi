@@ -1,7 +1,7 @@
 /*
  * HeliumBoot/EFI - A simple UEFI bootloader.
  *
- * Copyright (c) 2025 Stefanos Stefanidis.
+ * Copyright (c) 2025, 2026 Stefanos Stefanidis.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -48,7 +48,7 @@ struct boot_command_tab cmd_tab[] = {
 	{ L"exit", exit, CMD_NO_ARGS, L"exit: exit" },
 	{ L"help", help, CMD_NO_ARGS, L"help: help" },
 	{ L"hinv", hinv, CMD_NO_ARGS, L"hinv: hinv" },
-	{ L"ls", ls, CMD_OPTIONAL_ARGS, L"ls: sd(x,y)" },
+	{ L"ls", ls, CMD_OPTIONAL_ARGS, L"ls: sd(x,y) or DRIVE:\\" },
 	{ L"lsblk", lsblk, CMD_NO_ARGS, L"lsblk: lsblk" },
 	{ L"reboot", reboot, CMD_NO_ARGS, L"reboot: reboot" },
 	{ L"revision", print_revision, CMD_NO_ARGS, L"revision: revision" },

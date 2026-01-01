@@ -1,7 +1,7 @@
 /*
  * HeliumBoot/EFI - A simple UEFI bootloader.
  *
- * Copyright (c) 2025 Stefanos Stefanidis.
+ * Copyright (c) 2025, 2026 Stefanos Stefanidis.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -49,17 +49,6 @@ EFI_STATUS EFIAPI
 efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
 {
 	EFI_STATUS Status;
-	EFI_LOADED_IMAGE *LoadedImage;
-	EFI_FILE_IO_INTERFACE *FileSystem;
-	EFI_GUID LoadedImageProtocol = EFI_LOADED_IMAGE_PROTOCOL_GUID;
-	EFI_GUID FileSystemProtocol = EFI_SIMPLE_FILE_SYSTEM_PROTOCOL_GUID;
-	struct svr4_vtoc *Vtoc = NULL;
-	UINTN HandleCount;
-	UINT32 PartitionStart;
-	EFI_HANDLE *HandleBuffer;
-	EFI_BLOCK_IO_PROTOCOL *BlockIo;
-	EFI_GUID BlockIoProtocolGuid = EFI_BLOCK_IO_PROTOCOL_GUID;
-	EFI_FILE_HANDLE RootFS;
 
 	// These must be first. DO NOT PLACE ANY FUNCTION BEFORE THEM!
 	InitializeLib(ImageHandle, SystemTable);
@@ -73,13 +62,14 @@ efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
 	if (EFI_ERROR(Status))
 		HeliumBootPanic(Status, L"Could not initialize video!\n");
 
+#if defined(DEBUG_BLD)
+	EFI_LOADED_IMAGE *LoadedImage;
+
 	// Get info about our loaded image.
 	Status = uefi_call_wrapper(SystemTable->BootServices->HandleProtocol,
 		3, ImageHandle, &LoadedImageProtocol, (void**)&LoadedImage);
 	if (EFI_ERROR(Status))
-		HeliumBootPanic(Status, L"Could not get loaded image protocol\n");
-
-#if defined(DEBUG_BLD)
+		HeliumBootPanic(Status, L"Could not get loaded image protocol!\n");
 #if _LP64
 	PrintToScreen(L"LoadedImage       : 0x%lX\n", LoadedImage);
 	PrintToScreen(L"FilePath          : 0x%lX (%s)\n", LoadedImage->FilePath, LoadedImage->FilePath);
@@ -93,45 +83,7 @@ efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
 #endif /* _LP64 */
 #endif /* DEBUG_BLD */
 
-	Status = uefi_call_wrapper(BS->LocateHandleBuffer, 5, ByProtocol, &BlockIoProtocolGuid,
-		NULL, &HandleCount, &HandleBuffer);
-	if (EFI_ERROR(Status))
-		HeliumBootPanic(Status, L"Failed to locate block I/O handles\n");
-
-	Status = uefi_call_wrapper(BS->HandleProtocol, 3, HandleBuffer[0], &BlockIoProtocolGuid, (void**)&BlockIo);
-	if (EFI_ERROR(Status)) {
-		uefi_call_wrapper(BS->FreePool, 1, HandleBuffer);
-		HeliumBootPanic(Status, L"Failed to get block I/O protocol\n");
-	}
-
-	Status = FindPartitionStart(BlockIo, &PartitionStart);
-	if (EFI_ERROR(Status)) {
-		PrintToScreen(L"Failed to find partition start: %r\n", Status);
-		PartitionStart = 0;		// Default to 0 if no partition found
-	} else {
-		// Get the VTOC structure.
-		Status = ReadVtoc(Vtoc, BlockIo, PartitionStart);
-		if (EFI_ERROR(Status))
-			PrintToScreen(L"Warning: VTOC not found on boot volume.\n");
-	}
-
-	// Get filesystem type and open the device.
-	Status = uefi_call_wrapper(SystemTable->BootServices->HandleProtocol,
-		3, LoadedImage->DeviceHandle, &FileSystemProtocol, (void**)&FileSystem);
-	if (EFI_ERROR(Status)) {
-		uefi_call_wrapper(BS->FreePool, 1, HandleBuffer);
-		HeliumBootPanic(Status, L"Could not get filesystem protocol\n");
-	}
-
-	Status = uefi_call_wrapper(FileSystem->OpenVolume, 2, FileSystem, &RootFS);
-	if (EFI_ERROR(Status)) {
-		uefi_call_wrapper(BS->FreePool, 1, HandleBuffer);
-		HeliumBootPanic(Status, L"Could not open filesystem\n");
-	}
-
 	StartMenu();
-
-	uefi_call_wrapper(BS->FreePool, 1, HandleBuffer);
 
 	return EFI_SUCCESS;
 }

@@ -1,7 +1,7 @@
 /*
  * HeliumBoot/EFI - A simple UEFI bootloader.
  *
- * Copyright (c) 2025, 2026 Stefanos Stefanidis.
+ * Copyright (c) 2026 Stefanos Stefanidis.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -31,10 +31,7 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-/*
- * Execute an a.out binary.
- */
+ #ifndef _AOUT_H_
+#define _AOUT_H_
 
-#include "aout.h"
-
-
+#endif /* _AOUT_H_ */
