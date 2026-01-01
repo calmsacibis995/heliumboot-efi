@@ -7,4 +7,5 @@ fat.img
 iso_root
 heliumboot_x86_64.iso
 heliumboot_aarch64.iso
+efi.img
 gnu-efi
