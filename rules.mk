@@ -188,12 +188,23 @@ aarch64_dev_build: prep_build aarch64/boot_dev.efi
 	$(call link_aarch64_dev)
 	mcopy -i fat.img aarch64/boot_dev.efi ::/EFI/BOOT/BOOTAA64.EFI
 
-iso_prep:
+x86_64_iso_prep:
 	@rm -rf iso_root
 	@mkdir -p iso_root/EFI/BOOT
 	@cp x86_64/boot.efi iso_root/EFI/BOOT/BOOTX64.EFI
-	@cp aarch64/boot.efi iso_root/EFI/BOOT/BOOTAA64.EFI
 
-heliumboot.iso: iso_prep
+aarch64_iso_prep:
+	@rm -rf iso_root
+	@mkdir -p iso_root/EFI/BOOT
+	@cp x86_64/boot.efi iso_root/EFI/BOOT/BOOTAA64.EFI
+
+x86_64_iso: x86_64_iso_prep
 	xorriso -as mkisofs -no-emul-boot -iso-level 3 -full-iso9660-filenames \
-		-volid "HELIUM_BOOT" -output heliumboot.iso iso_root
+		-eltorito-platform efi -eltorito-boot EFI/BOOT/BOOTX64.EFI -volid "HELIUMBOOT" \
+		-output heliumboot_x86_64.iso iso_root
+
+aarch64_iso: aarch64_iso_prep
+	xorriso -as mkisofs -no-emul-boot -iso-level 3 -full-iso9660-filenames \
+		-eltorito-platform efi -eltorito-boot EFI/BOOT/BOOTAA64.EFI -volid "HELIUMBOOT" \
+		-output heliumboot_aarch64.iso iso_root
+

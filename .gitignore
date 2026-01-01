@@ -1,11 +1,10 @@
-ia32
 x86_64
-arm
 aarch64
 riscv64
 *.o
 *.so
 fat.img
 iso_root
-heliumboot.iso
+heliumboot_x86_64.iso
+heliumboot_aarch64.iso
 gnu-efi
