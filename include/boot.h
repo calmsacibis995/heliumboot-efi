@@ -65,29 +65,6 @@ struct fs_tab_entry {
 	fs_list_fn list_dir;	// Filesystem directory listing function.
 };
 
-enum FileFormats {
-	NONE,
-	ELF,
-	COFF,
-	AOUT,
-	PECOFF
-};
-
-typedef enum FileFormats lfhdr_t;
-
-/*
- * Boot header.
- */
-struct BootHeader {
-	lfhdr_t type;		// File type.
-	int nsect;		// Number of sections.
-#if _LP64
-	UINT64 entry;		// Entry point.
-#else
-	UINT32 entry;		// Entry point.
-#endif
-};
-
 // Global functions and variables, sorted by filename.
 
 // vers.c
@@ -104,6 +81,13 @@ extern const CHAR16 *getbuildno(void);
 extern BOOLEAN exit_flag;
 extern EFI_HANDLE gImageHandle;
 extern void CommandMonitor(void);
+
+// exec_efi.c
+extern BOOLEAN IsEfiBinary(const void *Buffer);
+extern EFI_STATUS LoadEfiBinary(CHAR16 *Path, EFI_HANDLE DeviceHandle);
+
+// exec_elf.c
+extern BOOLEAN IsElf64(UINT8 *Header);
 
 // helpers.c
 extern UINTN StrDecimalToUintn(CHAR16 *str);
@@ -125,7 +109,7 @@ extern UINT64 GetTotalMemoryBytes(void);
 
 // loadfile.c
 extern EFI_STATUS LoadFile(CHAR16 *args);
-extern EFI_STATUS LoadFileEFI(CHAR16 *args);
+extern EFI_STATUS LoadElfBinary(EFI_FILE_HANDLE File);
 
 // commands.c
 extern void about(CHAR16 *args);

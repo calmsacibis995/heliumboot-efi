@@ -1,7 +1,7 @@
 /*
  * HeliumBoot/EFI - A simple UEFI bootloader.
  *
- * Copyright (c) 2025 Stefanos Stefanidis.
+ * Copyright (c) 2025, 2026 Stefanos Stefanidis.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -39,12 +39,145 @@
 #include <efi.h>
 #include <efilib.h>
 
+#include <elf.h>
+
 #include "boot.h"
-#include "elf.h"
 #include "fatelf.h"
 
-#if _LP64
-struct Elf64_Ehdr ElfHdr;
-#else
-struct Elf32_Ehdr ElfHdr;
+#if defined(X86_64_BLD) || defined(__x86_64__)
+static Elf64_Half ArchNum = EM_X86_64;
+static const CHAR16 *ArchName = "x86_64";
+#elif defined(AARCH64_BLD) || defined(__aarch64__)
+static Elf64_Half ArchNum = EM_AARCH64;
+static const CHAR16 *ArchName = "aarch64";
+#elif defined(RISCV64_BLD) || defined(__riscv64__)
+static Elf64_Half ArchNum = EM_RISCV;
+static const CHAR16 *ArchName = "riscv64";
+#elif defined(MIPS64_BLD) || defined(__mips64__)
+static Elf64_Half ArchNum = EM_MIPS;
+static const CHAR16 *ArchName = "mips64";
+#elif defined(ITANIUM_BLD) || defined(__ia64__)
+static Elf64_Half ArchNum = EM_IA_64;
+static const CHAR16 *ArchName = "ia64";
 #endif
+
+BOOLEAN
+IsElf64(UINT8 *Header)
+{
+    Elf64_Ehdr *ElfHdr = (Elf64_Ehdr *)Header;
+
+    if (ElfHdr->e_ehsize != sizeof(Elf64_Ehdr)) {
+        PrintToScreen(L"Invalid ELF header size!\n");
+        return FALSE;
+    }
+
+    if (ElfHdr->e_phentsize != sizeof(Elf64_Phdr)) {
+        PrintToScreen(L"Invalid ELF program header size!\n");
+        return FALSE;
+    }
+
+    if (ElfHdr->e_ident[EI_MAG0] != ELFMAG0 && ElfHdr->e_ident[EI_MAG1] != ELFMAG1 && ElfHdr->e_ident[EI_MAG2] != ELFMAG2 && ElfHdr->e_ident[EI_MAG3] != ELFMAG3)
+        return FALSE;
+
+    if (ElfHdr->e_ident[EI_CLASS] != ELFCLASS64) {
+        PrintToScreen(L"This is a 32-bit ELF file, but you have a 64-bit version of HeliumBoot.\n");
+        return FALSE;
+    }
+
+    if (ElfHdr->e_ident[EI_DATA] != ELFDATA2LSB) {
+        PrintToScreen(L"This is a 64-bit big-endian ELF file, but you are attempting to run it on a little endian system.\n");
+        return FALSE;
+    }
+
+    if (ElfHdr->e_ident[EI_VERSION] != 1)
+        return FALSE;
+
+    if (ElfHdr->e_ident[EI_ABIVERSION] != 1)
+        return FALSE;
+
+    if (ElfHdr->e_machine != ArchNum) {
+        PrintToScreen(L"This is a valid ELF file, but it's for a processor other than the current machine's processor.\n");
+        return FALSE;
+    }
+
+    // TODO: Add shared object support.
+    if (ElfHdr->e_type != ET_EXEC) {
+        PrintToScreen(L"This ELF file is not an executable.\n");
+        return FALSE;
+    }
+
+    return TRUE;
+}
+
+EFI_STATUS
+LoadElfBinary(EFI_FILE_HANDLE File)
+{
+    EFI_STATUS Status;
+    Elf64_Ehdr Ehdr;
+    Elf64_Phdr *Phdrs = NULL;
+    UINTN Size, i;
+
+    Size = sizeof(Ehdr);
+    Status = uefi_call_wrapper(File->Read, 3, File, &Size, &Ehdr);
+    if (EFI_ERROR(Status)) {
+        PrintToScreen(L"Failed to read ELF file: %r\n");
+        return EFI_LOAD_ERROR;
+    }
+
+    if (Ehdr.e_phnum == 0 || Ehdr.e_phentsize != sizeof(Elf64_Phdr))
+        return EFI_UNSUPPORTED;
+
+    Size = Ehdr.e_phnum * sizeof(Elf64_Phdr);
+    Status = uefi_call_wrapper(gBS->AllocatePool, 3, EfiLoaderData, Size, (VOID **)&Phdrs);
+    if (EFI_ERROR(Status)) {
+        PrintToScreen(L"Failed to allocate memory for program header: %r\n", Status);
+        return Status;
+    }
+
+    Status = uefi_call_wrapper(File->SetPosition, 2, File, Ehdr.e_phoff);
+    if (EFI_ERROR(Status))
+        return EFI_LOAD_ERROR;
+
+    Status = uefi_call_wrapper(File->Read, 3, File, &Size, Phdrs);
+    if (EFI_ERROR(Status))
+        return EFI_LOAD_ERROR;
+
+    for (i = 0; i < Ehdr.e_phnum; i++) {
+        Elf64_Phdr *Ph = &Phdrs[i];
+        EFI_PHYSICAL_ADDRESS Addr;
+        UINTN Pages, ReadSize;
+
+        if (Ph->p_type != PT_LOAD)
+            continue;
+
+        Pages = EFI_SIZE_TO_PAGES(Ph->p_memsz);
+        Addr = Ph->p_paddr ? Ph->p_paddr : Ph->p_vaddr;
+
+        Status = uefi_call_wrapper(gBS->AllocatePages, 4, AllocateAddress, EfiLoaderData, Pages, &Addr);
+        if (EFI_ERROR(Status))
+            goto fail;
+
+        ReadSize = Ph->p_filesz;
+        Status = uefi_call_wrapper(File->Read, 3, File, &ReadSize, (VOID *)(UINTN)Addr);
+        if (EFI_ERROR(Status))
+            goto fail;
+
+        // Clear BSS.
+        if (Ph->p_memsz > Ph->p_filesz)
+            SetMem((VOID *)(UINTN)(Addr + Ph->p_filesz), Ph->p_memsz - Ph->p_filesz, 0);
+    }
+
+    void (*Entry)(void);
+    Entry = (void (*)(void))(UINTN)Ehdr.e_entry;
+
+    // We shall not return.
+    Entry();
+
+    return EFI_SUCCESS;
+
+fail:
+    if (Phdrs)
+        uefi_call_wrapper(gBS->FreePool, 1, Phdrs);
+
+    return EFI_LOAD_ERROR;
+}

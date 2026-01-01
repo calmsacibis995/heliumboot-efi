@@ -1,7 +1,7 @@
 /*
  * HeliumBoot/EFI - A simple UEFI bootloader.
  *
- * Copyright (c) 2025 Stefanos Stefanidis.
+ * Copyright (c) 2025, 2026 Stefanos Stefanidis.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -38,88 +38,112 @@
 #include <efi.h>
 #include <efilib.h>
 
+#include <elf.h>
+
 #include "boot.h"
-#include "elf.h"
 
-#define MINHDRSZ	1
-
+/*
+ * Function:
+ * LoadFile()
+ *
+ * Description:
+ * Load a binary file to execute. It can be one of:
+ *	- a.out
+ *	- COFF
+ *	- ELF
+ *	- EFI PE/COFF
+ */
 EFI_STATUS
 LoadFile(CHAR16 *args)
 {
 	EFI_STATUS Status;
-	EFI_FILE_PROTOCOL *File;
-	UINTN ReadSize;
-	CHAR16 Buffer[MINHDRSZ];
-	UINTN HeaderMagic;
-	struct BootHeader *bhdr;
-
-	Status = ReadFile(File, Buffer, MINHDRSZ, &ReadSize);
-	if (EFI_ERROR(Status)) {
-		PrintToScreen(L"Failed to read file: %r\n", Status);
-		return Status;
-	}
-
-	return EFI_SUCCESS;
-}
-
-EFI_STATUS
-LoadFileEFI(CHAR16 *path)
-{
-	EFI_STATUS Status;
-	EFI_HANDLE KernelImage;
-	EFI_DEVICE_PATH *FilePath;
-	EFI_LOADED_IMAGE *LoadedImage;
 	EFI_FILE_HANDLE File, RootFS;
+	EFI_LOADED_IMAGE *LoadedImage;
+	UINTN ReadSize;
+	UINT8 Header[64];
+	CHAR16 *Path;
+	CHAR16 *ProgArgs;
+	UINTN DriveIndex = 0;
+	UINTN SliceIndex = 0;
 
-	Status = uefi_call_wrapper(gST->BootServices->HandleProtocol,
-		3, gImageHandle, &LoadedImageProtocol, (void**)&LoadedImage);
+	// Process sd(x,y). We also support X:\, where X is a UEFI drive or partition number.
+	// sd(x,y) should be used by disks with VTOC, X:\ by everything else.
+	if (args && StrnCmp(args, L"sd(", 3) == 0) {
+		CHAR16 *p = args + 3;
+		UINTN X = 0, Y = 0;
+
+		while (*p >= L'0' && *p <= L'9')
+			X = X * 10 + (*p++ - L'0');
+
+		if (*p == L',' || *p == L' ')
+			p++;
+
+		while (*p >= L'0' && *p <= L'9')
+			Y = Y * 10 + (*p++ - L'0');
+
+		if (*p != L')') {
+			PrintToScreen(L"Invalid sd(X,Y) format\n");
+			return EFI_INVALID_PARAMETER;
+		}
+
+		p++;
+		DriveIndex = X;
+		SliceIndex = Y;
+
+		if (*p == L':' && *(p+1) == L'\\')
+			Path = p + 2;
+		else
+			Path = L"\\";
+	} else if (args && StrLen(args) > 2 && args[1] == L':' && args[2] == L'\\') {
+		DriveIndex = args[0] - L'0';
+		Path = &args[3];
+	}
+
+	Status = uefi_call_wrapper(gBS->HandleProtocol, 3, gImageHandle, &gEfiLoadedImageProtocolGuid, (VOID **)&LoadedImage);
 	if (EFI_ERROR(Status)) {
-		PrintToScreen(L"Could not get loaded image protocol\n");
+		PrintToScreen(L"Cannot get loaded image protocol: %r\n", Status);
 		return Status;
 	}
 
-	Status = uefi_call_wrapper(gST->BootServices->HandleProtocol, 3, LoadedImage->DeviceHandle,
-		&FileSystemProtocol, (void**)&RootFS);
+	Status = uefi_call_wrapper(gBS->HandleProtocol, 3, LoadedImage->DeviceHandle, &gEfiSimpleFileSystemProtocolGuid, (VOID **)&RootFS);
 	if (EFI_ERROR(Status)) {
-		PrintToScreen(L"Could not get file system protocol: %r\n", Status);
+		PrintToScreen(L"Cannot get Simple File System protocol: %r\n", Status);
 		return Status;
 	}
 
-	// Open the file.
-	Status = uefi_call_wrapper(RootFS->Open, 5, RootFS, &File, path, EFI_FILE_MODE_READ, 0);
+	Status = uefi_call_wrapper(RootFS->Open, 5, RootFS, &File, Path, EFI_FILE_MODE_READ, 0);
 	if (EFI_ERROR(Status)) {
-		PrintToScreen(L"Could not open file (%r)\n", Status);
+		PrintToScreen(L"Cannot open file %s: %r\n", Path, Status);
 		return Status;
 	}
 
-	// Get file path.
-	FilePath = FileDevicePath(LoadedImage->DeviceHandle, path);
-	if (FilePath == NULL) {
-		PrintToScreen(L"Could not create device path for file\n");
-		return EFI_NOT_FOUND;
-	}
-
-	// Load the file.
-	Status = uefi_call_wrapper(gST->BootServices->LoadImage,
-		6, FALSE, gImageHandle, FilePath, NULL, 0, &KernelImage);
+	ReadSize = sizeof(Header);
+	Status = uefi_call_wrapper(File->Read, 3, File, &ReadSize, Header);
 	if (EFI_ERROR(Status)) {
-		PrintToScreen(L"Failed to load image (%r)\n", Status);
-		FreePool(FilePath);
+		PrintToScreen(L"Cannot read file %s: %r\n", Path, Status);
 		uefi_call_wrapper(File->Close, 1, File);
 		return Status;
 	}
 
-	// Free the pool.
-	FreePool(FilePath);
-	uefi_call_wrapper(File->Close, 1, File);
+	uefi_call_wrapper(File->SetPosition, 2, File, 0);
 
-	// Execute the file.
-	Status = uefi_call_wrapper(gST->BootServices->StartImage,
-		3, KernelImage, NULL, NULL);
-	if (EFI_ERROR(Status)) {
-		PrintToScreen(L"Failed to start EFI image: %r\n", Status);
-		return Status;
+	if (IsElf64(Header)) {
+		Status = LoadElfBinary(File);
+		if (EFI_ERROR(Status)) {
+			PrintToScreen(L"Failed to load ELF file %s: %r\n", Status);
+			return Status;
+		}
+	} else if (IsEfiBinary(Header)) {
+		Status = LoadEfiBinary(Path, LoadedImage->DeviceHandle);
+		if (EFI_ERROR(Status)) {
+			PrintToScreen(L"Failed to load EFI binary %s: %r\n", Status);
+			return Status;
+		}
+	} else {
+		PrintToScreen(L"Unknown binary format\n");
+		return EFI_UNSUPPORTED;
 	}
 
+	uefi_call_wrapper(File->Close, 1, File);
 	return EFI_SUCCESS;
 }

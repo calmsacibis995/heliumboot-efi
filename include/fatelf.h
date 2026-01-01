@@ -1,7 +1,7 @@
 /*
  * HeliumBoot/EFI - A simple UEFI bootloader.
  *
- * Copyright (c) 2025, 2026 Stefanos Stefanidis.
+ * Copyright (c) 2026 Stefanos Stefanidis.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -31,26 +31,7 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <efi.h>
-#include <efilib.h>
+#ifndef _FATELF_H_
+#define _FATELF_H_
 
-#include "boot.h"
-
-struct boot_command_tab cmd_tab[] = {
-	{ L"?", help, CMD_NO_ARGS, L"?: help" },
-	{ L"about", about, CMD_NO_ARGS, L"about: about" },
-	{ L"boot", boot, CMD_REQUIRED_ARGS, L"boot: sd(x,y)FILE [ARGS]" },
-	{ L"clear", cls, CMD_NO_ARGS, L"clear: cls" },
-	{ L"cls", cls, CMD_NO_ARGS, L"cls: cls" },
-	{ L"dir", ls, CMD_OPTIONAL_ARGS, L"dir: ls" },
-	{ L"echo", echo, CMD_REQUIRED_ARGS, L"echo: STRING" },
-	{ L"exit", exit, CMD_NO_ARGS, L"exit: exit" },
-	{ L"help", help, CMD_NO_ARGS, L"help: help" },
-	{ L"hinv", hinv, CMD_NO_ARGS, L"hinv: hinv" },
-	{ L"ls", ls, CMD_OPTIONAL_ARGS, L"ls: sd(x,y) or DRIVE:\\" },
-	{ L"lsblk", lsblk, CMD_NO_ARGS, L"lsblk: lsblk" },
-	{ L"reboot", reboot, CMD_NO_ARGS, L"reboot: reboot" },
-	{ L"revision", print_revision, CMD_NO_ARGS, L"revision: revision" },
-	{ L"version", print_version, CMD_NO_ARGS, L"version: version" },
-	{ NULL, NULL, CMD_NO_ARGS, NULL }
-};
+#endif /* _FATELF_H_ */

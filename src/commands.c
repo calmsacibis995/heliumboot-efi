@@ -60,21 +60,6 @@ boot(CHAR16 *args)
 		PrintToScreen(L"boot: Failed to boot file (%r)\n", Status);
 }
 
-/*
- * Boot an EFI executable file.
- */
-void
-boot_efi(CHAR16 *args)
-{
-	EFI_STATUS Status;
-
-	PrintToScreen(L"Booting EFI file: %s\n", args);
-
-	Status = LoadFileEFI(args);
-	if (EFI_ERROR(Status))
-		PrintToScreen(L"boot_efi: Failed to boot file (%r)\n", Status);
-}
-
 void
 cls(CHAR16 *args)
 {
@@ -168,6 +153,8 @@ ls(CHAR16 *args)
 	BOOLEAN detected_by_plugin = FALSE;
 	struct mbr_partition *Partitions = NULL;
 
+	// Process sd(x,y). We also support X:\, where X is a UEFI drive or partition number.
+	// sd(x,y) should be used by disks with VTOC, X:\ by everything else.
 	if (args && StrnCmp(args, L"sd(", 3) == 0) {
 		CHAR16 *p = args + 3;
 		UINTN X = 0, Y = 0;
