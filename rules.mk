@@ -192,15 +192,33 @@ x86_64_iso_prep:
 	@rm -rf iso_root
 	@mkdir -p iso_root/EFI/BOOT
 	@cp x86_64/boot.efi iso_root/EFI/BOOT/BOOTX64.EFI
+	@dd if=/dev/zero of=efi.img bs=1M count=64
+	@mkfs.vfat -F 12 efi.img
+	@mkdir -p mnt
+	@sudo mount -o loop efi.img mnt
+	@sudo mkdir -p mnt/EFI/BOOT
+	@sudo cp iso_root/EFI/BOOT/BOOTX64.EFI mnt/EFI/BOOT/
+	@sudo umount mnt
+	@rmdir mnt
+	@sudo cp efi.img iso_root
 
 aarch64_iso_prep:
 	@rm -rf iso_root
 	@mkdir -p iso_root/EFI/BOOT
-	@cp x86_64/boot.efi iso_root/EFI/BOOT/BOOTAA64.EFI
+	@cp aarch64/boot.efi iso_root/EFI/BOOT/BOOTAA64.EFI
+	@dd if=/dev/zero of=efi.img bs=1M count=64
+	@mkfs.vfat -F 12 efi.img
+	@mkdir -p mnt
+	@sudo mount -o loop efi.img mnt
+	@sudo mkdir -p mnt/EFI/BOOT
+	@sudo cp iso_root/EFI/BOOT/BOOTAA64.EFI mnt/EFI/BOOT/
+	@sudo umount mnt
+	@rmdir mnt
+	@sudo cp efi.img iso_root
 
 x86_64_iso: x86_64_iso_prep
 	xorriso -as mkisofs -no-emul-boot -iso-level 3 -full-iso9660-filenames \
-		-eltorito-platform efi -eltorito-boot EFI/BOOT/BOOTX64.EFI -volid "HELIUMBOOT" \
+		-eltorito-platform efi -eltorito-boot efi.img -volid "HELIUMBOOT" \
 		-output heliumboot_x86_64.iso iso_root
 
 aarch64_iso: aarch64_iso_prep
