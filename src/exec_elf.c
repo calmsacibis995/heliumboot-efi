@@ -147,8 +147,18 @@ LoadElfBinary(EFI_FILE_HANDLE File)
         EFI_PHYSICAL_ADDRESS Addr;
         UINTN Pages, ReadSize;
 
-        if (Ph->p_type != PT_LOAD)
-            continue;
+        switch (Ph->p_type) {
+            case PT_LOAD:
+                break;
+            case PT_INTERP:
+            case PT_SHLIB:
+            case PT_PHDR:
+            case PT_NULL:
+            case PT_DYNAMIC:
+            case PT_NOTE:
+            default:
+                continue;
+        }
 
         Pages = EFI_SIZE_TO_PAGES(Ph->p_memsz);
         Addr = Ph->p_paddr ? Ph->p_paddr : Ph->p_vaddr;

@@ -100,11 +100,11 @@ IsEfiBinary(const void *Buffer)
 EFI_STATUS
 LoadEfiBinary(CHAR16 *Path, EFI_HANDLE DeviceHandle)
 {
-    EFI_STATUS Status;
-    EFI_HANDLE Image;
-    EFI_DEVICE_PATH *FilePath;
+	EFI_STATUS Status;
+	EFI_HANDLE Image;
+	EFI_DEVICE_PATH *FilePath;
 
-    // Get file path.
+	// Get file path.
 	FilePath = FileDevicePath(DeviceHandle, Path);
 	if (FilePath == NULL) {
 		PrintToScreen(L"Could not create device path for file.\n");
@@ -115,18 +115,18 @@ LoadEfiBinary(CHAR16 *Path, EFI_HANDLE DeviceHandle)
 	Status = uefi_call_wrapper(gST->BootServices->LoadImage,
 		6, FALSE, gImageHandle, FilePath, NULL, 0, &Image);
 
-    FreePool(FilePath);
+	FreePool(FilePath);
 
 	if (EFI_ERROR(Status)) {
 		PrintToScreen(L"Failed to load image (%r)\n", Status);
 		return Status;
 	}
 
-    Status = gBS->StartImage(Image, NULL, NULL);
-    if (EFI_ERROR(Status)) {
-        PrintToScreen(L"Failed to start image (%r)\n", Status);
-        return Status;
-    }
+	Status = uefi_call_wrapper(gBS->StartImage, 3, Image, NULL, NULL);
+	if (EFI_ERROR(Status)) {
+		PrintToScreen(L"Failed to start image (%r)\n", Status);
+		return Status;
+	}
 
-    return EFI_SUCCESS;
+	return EFI_SUCCESS;
 }
