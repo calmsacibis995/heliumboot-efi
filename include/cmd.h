@@ -1,7 +1,7 @@
 /*
  * HeliumBoot/EFI - A simple UEFI bootloader.
  *
- * Copyright (c) 2025, 2026 Stefanos Stefanidis.
+ * Copyright (c) 2026 Stefanos Stefanidis.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -31,19 +31,40 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef _PART_H_
-#define _PART_H_
+#ifndef _CMD_H_
+#define _CMD_H_
 
 #include <efi.h>
 #include <efilib.h>
 
-struct mbr_partition {
-    UINT8 boot_indicator;
-    UINT8 starting_chs[3];
-    UINT8 os_type;
-    UINT8 ending_chs[3];
-    UINT32 starting_lba;
-    UINT32 size_in_lba;
-} __attribute__((packed));
+enum arg_type {
+    CMD_NO_ARGS,
+    CMD_OPTIONAL_ARGS,
+    CMD_REQUIRED_ARGS
+};
 
-#endif /* _PART_H_ */
+struct boot_command_tab {
+	CHAR16 *cmd_name;		// Command name.
+	void (*cmd_func)(CHAR16 *args);		// Function pointer.
+	enum arg_type cmd_arg_type;		// Command type
+	CHAR16 *cmd_usage;	// Command usage.
+};
+
+extern struct boot_command_tab cmd_tab[];
+
+extern void CommandMonitor(void);
+extern void about(CHAR16 *args);
+extern void boot(CHAR16 *args);
+extern void boot_efi(CHAR16 *args);
+extern void cls(CHAR16 *args);
+extern void echo(CHAR16 *args);
+extern void exit(CHAR16 *args);
+extern void help(CHAR16 *args);
+extern void hinv(CHAR16 *args);
+extern void ls(CHAR16 *args);
+extern void lsblk(CHAR16 *args);
+extern void reboot(CHAR16 *args);
+extern void print_revision(CHAR16 *args);
+extern void print_version(CHAR16 *args);
+
+#endif /* _CMD_H_ */

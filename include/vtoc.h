@@ -43,7 +43,7 @@
 #define VTOC_SANE		0x600DDEEE	/* Indicates a sane VTOC */
 #define V_VERSION		0x01		/* layout version number */
 
-#define ALT_SANITY      0xdeadbeef  /* magic # to validate alt table */
+#define ALT_SANITY      0xDEADBEEF  /* magic # to validate alt table */
 #define ALT_VERSION     0x02		/* version of table */
 
 #define VALID_PD		0xCA5E600D
@@ -118,5 +118,7 @@ struct svr4_alt_info {
     struct svr4_alt_table alt_trk;  /* bad track table */
     struct svr4_alt_table alt_sec;  /* bad sector table */
 };
+
+extern EFI_STATUS ReadVtoc(struct svr4_vtoc *OutVtoc, EFI_BLOCK_IO_PROTOCOL *BlockIo, UINT32 PartitionStart);
 
 #endif /* _VTOC_H_ */

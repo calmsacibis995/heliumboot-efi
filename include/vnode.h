@@ -1,7 +1,7 @@
 /*
  * HeliumBoot/EFI - A simple UEFI bootloader.
  *
- * Copyright (c) 2025 Stefanos Stefanidis.
+ * Copyright (c) 2025, 2026 Stefanos Stefanidis.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -44,7 +44,13 @@
 typedef enum vtype {
 	VNON	= 0,
 	VREG	= 1,
-	VDIR	= 2
+	VDIR	= 2,
+	VBLK	= 3,
+	VCHR	= 4,
+	VLNK	= 5,
+	VFIFO	= 6,
+	VXNAM	= 7,
+	VBAD	= 8
 } vtype_t;
 
 /*
@@ -55,5 +61,7 @@ typedef struct vnode {
 	void *fs_private;		/* filesystem-specific data */
 	void *mount;			/* pointer to mount structure */
 } vnode_t;
+
+extern enum vtype iftovt_tab[];
 
 #endif /* _VNODE_H_ */

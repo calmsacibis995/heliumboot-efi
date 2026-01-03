@@ -1,7 +1,7 @@
 /*
  * HeliumBoot/EFI - A simple UEFI bootloader.
  *
- * Copyright (c) 2025, 2026 Stefanos Stefanidis.
+ * Copyright (c) 2026 Stefanos Stefanidis.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -31,19 +31,32 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef _PART_H_
-#define _PART_H_
+#ifndef _FS_H_
+#define _FS_H_
 
 #include <efi.h>
 #include <efilib.h>
 
-struct mbr_partition {
-    UINT8 boot_indicator;
-    UINT8 starting_chs[3];
-    UINT8 os_type;
-    UINT8 ending_chs[3];
-    UINT32 starting_lba;
-    UINT32 size_in_lba;
-} __attribute__((packed));
+#include "s5fs.h"
+#include "ufs.h"
 
-#endif /* _PART_H_ */
+typedef EFI_STATUS (*fs_detect_fn)(EFI_BLOCK_IO_PROTOCOL *bio, UINT32 slice_lba, void *sb_buffer);
+typedef EFI_STATUS (*fs_mount_fn)(EFI_BLOCK_IO_PROTOCOL *bio, UINT32 slice_lba, void *sb_buffer, void **mount_out);
+typedef EFI_STATUS (*fs_list_fn)(void *mount_ctx, const CHAR16 *path);
+typedef EFI_STATUS (*fs_umount_fn)(void *mount_ctx);
+
+/*
+ * Filesystem table entry structure.
+ */
+struct fs_tab_entry {
+	CHAR16 *fs_name;		// Filesystem name.
+	fs_detect_fn detect_fs;	// Filesystem detection function.
+	UINTN sb_size;			// Filesystem superblock size.
+	fs_mount_fn mount_fs;	// Filesystem mount function.
+	fs_list_fn list_dir;	// Filesystem directory listing function.
+	fs_umount_fn umount_fs;	// Filesystem umount function.
+};
+
+extern struct fs_tab_entry fs_tab[];
+
+#endif /* _FS_H_ */

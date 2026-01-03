@@ -1,7 +1,7 @@
 /*
  * HeliumBoot/EFI - A simple UEFI bootloader.
  *
- * Copyright (c) 2025 Stefanos Stefanidis.
+ * Copyright (c) 2025, 2026 Stefanos Stefanidis.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -34,16 +34,14 @@
 #include <efi.h>
 #include <efilib.h>
 
-#include "boot.h"
-#include "s5fs.h"
-#include "ufs.h"
+#include "fs.h"
 
 /*
  * Filesystem table entry table.
  * Does not include FAT, as it is handled by UEFI natively.
  */
 struct fs_tab_entry fs_tab[] = {
-    { L"s5", DetectS5, sizeof(struct s5_superblock), MountS5, ReadS5Dir },
-    { L"ufs", DetectUFS, sizeof(struct ufs_superblock), MountUFS, ReadUFSDir },
-    { NULL, NULL, 0, NULL, NULL }
+    { L"s5", DetectS5, sizeof(struct s5_superblock), MountS5, ReadS5Dir, UmountS5 },
+    { L"ufs", DetectUFS, sizeof(struct ufs_superblock), MountUFS, ReadUFSDir, UmountUFS },
+    { NULL, NULL, 0, NULL, NULL, NULL }
 };

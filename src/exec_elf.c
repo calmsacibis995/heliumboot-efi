@@ -50,7 +50,7 @@ static const CHAR16 *ArchName = "x86_64";
 #elif defined(AARCH64_BLD) || defined(__aarch64__)
 static Elf64_Half ArchNum = EM_AARCH64;
 static const CHAR16 *ArchName = "aarch64";
-#elif defined(RISCV64_BLD) || defined(__riscv64__)
+#elif defined(RISCV64_BLD) || defined(__riscv)
 static Elf64_Half ArchNum = EM_RISCV;
 static const CHAR16 *ArchName = "riscv64";
 #elif defined(MIPS64_BLD) || defined(__mips64__)
@@ -65,16 +65,6 @@ BOOLEAN
 IsElf64(UINT8 *Header)
 {
     Elf64_Ehdr *ElfHdr = (Elf64_Ehdr *)Header;
-
-    if (ElfHdr->e_ehsize != sizeof(Elf64_Ehdr)) {
-        PrintToScreen(L"Invalid ELF header size!\n");
-        return FALSE;
-    }
-
-    if (ElfHdr->e_phentsize != sizeof(Elf64_Phdr)) {
-        PrintToScreen(L"Invalid ELF program header size!\n");
-        return FALSE;
-    }
 
     if (ElfHdr->e_ident[EI_MAG0] != ELFMAG0 && ElfHdr->e_ident[EI_MAG1] != ELFMAG1 && ElfHdr->e_ident[EI_MAG2] != ELFMAG2 && ElfHdr->e_ident[EI_MAG3] != ELFMAG3)
         return FALSE;
@@ -103,6 +93,16 @@ IsElf64(UINT8 *Header)
     // TODO: Add shared object support.
     if (ElfHdr->e_type != ET_EXEC) {
         PrintToScreen(L"This ELF file is not an executable.\n");
+        return FALSE;
+    }
+
+    if (ElfHdr->e_ehsize != sizeof(Elf64_Ehdr)) {
+        PrintToScreen(L"Invalid ELF header size!\n");
+        return FALSE;
+    }
+
+    if (ElfHdr->e_phentsize != sizeof(Elf64_Phdr)) {
+        PrintToScreen(L"Invalid ELF program header size!\n");
         return FALSE;
     }
 

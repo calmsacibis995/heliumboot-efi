@@ -35,7 +35,10 @@
 #include <efilib.h>
 
 #include "boot.h"
-#include "s5fs.h"
+#include "cmd.h"
+#include "disk.h"
+#include "fs.h"
+#include "vtoc.h"
 
 void
 about(CHAR16 *args)
@@ -143,103 +146,122 @@ ls(CHAR16 *args)
 	CHAR16 *Path = NULL;
 	UINTN DriveIndex = 0, SliceIndex = 0;
 	EFI_HANDLE *HandleBuffer = NULL;
-	UINTN HandleCount;
 	UINT32 PartitionStart = 0;
 	struct svr4_vtoc *Vtoc = NULL;
 	VOID *sb = NULL;
-	UINT32 SliceLBA;
+	UINT32 SliceLBA, SectorStart;
 	struct fs_tab_entry *fs_entry_ptr;
 	VOID *mount_ctx = NULL;
 	BOOLEAN detected_by_plugin = FALSE;
 	struct mbr_partition *Partitions = NULL;
 
-	// Process sd(x,y). We also support X:\, where X is a UEFI drive or partition number.
-	// sd(x,y) should be used by disks with VTOC, X:\ by everything else.
-	if (args && StrnCmp(args, L"sd(", 3) == 0) {
-		CHAR16 *p = args + 3;
-		UINTN X = 0, Y = 0;
-
-		while (*p >= L'0' && *p <= L'9')
-			X = X * 10 + (*p++ - L'0');
-
-		if (*p == L',' || *p == L' ')
-			p++;
-
-		while (*p >= L'0' && *p <= L'9')
-			Y = Y * 10 + (*p++ - L'0');
-
-		if (*p != L')') {
-			PrintToScreen(L"Invalid sd(X,Y) format\n");
-			return;
-		}
-
-		p++;
-		DriveIndex = X;
-		SliceIndex = Y;
-
-		if (*p == L':' && *(p+1) == L'\\')
-			Path = p + 2;
-		else
-			Path = L"\\";
-	} else if (args && StrLen(args) > 2 && args[1] == L':' && args[2] == L'\\') {
-		DriveIndex = args[0] - L'0';
-		Path = &args[3];
-	} else {
-init_simplefs:
-		Status = uefi_call_wrapper(BS->HandleProtocol, 3, gImageHandle, &LoadedImageProtocol, (void **)&LoadedImage);
-		if (EFI_ERROR(Status)) {
-			PrintToScreen(L"Failed to get LoadedImage protocol: %r\n", Status);
-			return;
-		}
-
-		Status = uefi_call_wrapper(BS->HandleProtocol, 3, LoadedImage->DeviceHandle, &gEfiSimpleFileSystemProtocolGuid,
-			(void **)&SimpleFileSystem);
-		if (EFI_ERROR(Status)) {
-			PrintToScreen(L"Failed to get SimpleFileSystem protocol: %r\n", Status);
-			return;
-		}
-
-		goto open_volume;
-	}
-
-	Status = uefi_call_wrapper(BS->LocateHandleBuffer, 5, ByProtocol, &BlockIoProtocol, NULL, &HandleCount, &HandleBuffer);
-	if (EFI_ERROR(Status)) {
-		PrintToScreen(L"Failed to locate block I/O handles: %r\n", Status);
+	// Process sd(x,y) only.
+	if (!args || StrnCmp(args, L"sd(", 3) != 0) {
+		PrintToScreen(L"Only sd(X,Y)[path] syntax is supported\n");
 		return;
 	}
 
-	if (DriveIndex >= HandleCount) {
-		PrintToScreen(L"Invalid drive index %u, max index is %u\n", DriveIndex, HandleCount - 1);
-		goto cleanup;
+	CHAR16 *p = args + 3;
+	UINTN X = 0, Y = 0;
+	BOOLEAN have_x = FALSE;
+	BOOLEAN have_y = FALSE;
+
+	while (*p >= L'0' && *p <= L'9') {
+		have_x = TRUE;
+		X = X * 10 + (*p++ - L'0');
 	}
 
-	Status = uefi_call_wrapper(BS->HandleProtocol, 3, HandleBuffer[DriveIndex], &BlockIoProtocol, (void **)&BlockIo);
+	if (!have_x || *p != L',') {
+		PrintToScreen(L"Invalid sd(X,Y) format\n");
+		return;
+	}
+
+	p++;
+
+	while (*p >= L'0' && *p <= L'9') {
+		have_y = TRUE;
+		Y = Y * 10 + (*p++ - L'0');
+	}
+
+	if (!have_y || *p != L')') {
+		PrintToScreen(L"Invalid sd(X,Y) format\n");
+		return;
+	}
+
+	p++;
+
+	DriveIndex = X;
+	SliceIndex = Y;
+
+	if (SliceIndex > V_NUMPAR - 1) {
+		PrintToScreen(L"Invalid slice number %d\n", SliceIndex);
+		return;
+	}
+
+	if (*p == L'\0')
+		Path = L"\\";
+	else if (*p == L'\\')
+		Path = p;
+	else {
+		static CHAR16 PathBuf[256];
+
+		PathBuf[0] = L'\\';
+		StrnCpy(PathBuf + 1, p, ARRAY_SIZE(PathBuf) - 2);
+		PathBuf[ARRAY_SIZE(PathBuf) - 1] = L'\0';
+		Path = PathBuf;
+	}
+
+	Status = uefi_call_wrapper(BS->HandleProtocol, 3, gImageHandle, &LoadedImageProtocol, (void **)&LoadedImage);
 	if (EFI_ERROR(Status)) {
-		PrintToScreen(L"Failed to get Block I/O protocol: %r\n", Status);
+		PrintToScreen(L"Failed to get LoadedImage protocol: %r\n", Status);
+		return;
+	}
+
+	Status = uefi_call_wrapper(BS->HandleProtocol, 3, LoadedImage->DeviceHandle, &gEfiSimpleFileSystemProtocolGuid, (void **)&SimpleFileSystem);
+	if (EFI_ERROR(Status)) {
+		PrintToScreen(L"Failed to get SimpleFileSystem protocol: %r\n", Status);
+		return;
+	}
+
+	Status = GetWholeDiskByIndex(DriveIndex, &BlockIo);
+	if (EFI_ERROR(Status)) {
+		PrintToScreen(L"Invalid disk index %u\n", DriveIndex);
 		goto cleanup;
 	}
 
-	// Skip disk-specific stuff and use Simple File System protocol if we are booting from CD/DVD.
 	if (BlockIo->Media->RemovableMedia && !BlockIo->Media->LogicalPartition)
-		goto init_simplefs;
+		goto open_volume;
+
+	Partitions = AllocateZeroPool(sizeof(struct mbr_partition) * 4);
+    if (!Partitions) {
+        PrintToScreen(L"Failed to allocate memory for partition table\n");
+        goto cleanup;
+    }
 
 	Status = GetPartitionData(BlockIo, Partitions);
 	if (EFI_ERROR(Status)) {
 		PrintToScreen(L"Error: Cannot get partition data: %r\n", Status);
-		goto init_simplefs;		// Fallback to native EFI API on failure.
+		goto cleanup;
 	}
 
 	Status = FindSysVPartition(Partitions, &PartitionStart);
 	if (EFI_ERROR(Status)) {
 		PrintToScreen(L"No System V partition detected.\n");
-		goto init_simplefs;		// Fallback to native EFI API on failure.
+		goto cleanup;
 	}
+
+	Vtoc = AllocateZeroPool(sizeof(struct svr4_vtoc));
+    if (!Vtoc) {
+        PrintToScreen(L"Failed to allocate memory for VTOC\n");
+        goto cleanup;
+    }
 
 	Status = ReadVtoc(Vtoc, BlockIo, PartitionStart);
 	if (!EFI_ERROR(Status)) {
 		if (SliceIndex < Vtoc->v_nparts) {
-			SliceLBA = Vtoc->v_part[SliceIndex].p_start;
-			PrintToScreen(L"VTOC slice %u start LBA: %u\n", SliceIndex, SliceLBA);
+			SectorStart = Vtoc->v_part[SliceIndex].p_start;
+			SliceLBA = SectorStart;
+			PrintToScreen(L"VTOC slice %u, starting sector: %u\n", SliceIndex, SectorStart);
 		} else {
 			PrintToScreen(L"Invalid slice index %u\n", SliceIndex);
 			goto cleanup;
@@ -261,54 +283,66 @@ init_simplefs:
 		}
 
 		Status = fs_entry_ptr->detect_fs(BlockIo, SliceLBA, sb);
-		if (!EFI_ERROR(Status)) {
-			PrintToScreen(L"Detected filesystem: %s\n", fs_entry_ptr->fs_name);
-			if (fs_entry_ptr->mount_fs) {
-				Status = fs_entry_ptr->mount_fs(BlockIo, SliceLBA, sb, &mount_ctx);
-				if (EFI_ERROR(Status)) {
-					PrintToScreen(L"Failed to mount %s: %r\n", fs_entry_ptr->fs_name, Status);
-					FreePool(sb);
-					sb = NULL;
-					mount_ctx = NULL;
-					continue;
-				}
-			}
+		if (EFI_ERROR(Status)) {
+			FreePool(sb);
+			sb = NULL;
+			continue;
+		}
 
-			if (fs_entry_ptr->list_dir && mount_ctx != NULL) {
-				if (!Path || StrLen(Path) == 0)
-					Path = L"\\";
-				Status = fs_entry_ptr->list_dir(mount_ctx, Path);
-				if (EFI_ERROR(Status)) {
-					PrintToScreen(L"Failed to list directory %s: %r\n", Path, Status);
-					FreePool(sb);
-					sb = NULL;
-					mount_ctx = NULL;
-					continue;
-				}
-				detected_by_plugin = TRUE;
-			} else {
-				detected_by_plugin = FALSE;
-			}
+		PrintToScreen(L"Detected filesystem: %s\n", fs_entry_ptr->fs_name);
 
-			break;
+		if (fs_entry_ptr->mount_fs) {
+			Status = fs_entry_ptr->mount_fs(BlockIo, SliceLBA, sb, &mount_ctx);
+			if (EFI_ERROR(Status)) {
+				PrintToScreen(L"Failed to mount %s: %r\n", fs_entry_ptr->fs_name, Status);
+				FreePool(sb);
+				sb = NULL;
+				continue;
+			}
 		}
 
 		FreePool(sb);
 		sb = NULL;
+		detected_by_plugin = TRUE;
+
+		if (fs_entry_ptr->list_dir && mount_ctx) {
+			if (!Path)
+				Path = L"\\";
+			Status = fs_entry_ptr->list_dir(mount_ctx, Path);
+			if (EFI_ERROR(Status))
+				PrintToScreen(L"Failed to list directory %s: %r\n", Path, Status);
+		}
+
+		if (fs_entry_ptr->umount_fs && mount_ctx) {
+			fs_entry_ptr->umount_fs(mount_ctx);
+			mount_ctx = NULL;
+		}
+
+		if (detected_by_plugin)
+			break;
 	}
 
 	// A filesystem was detected and listed by a plugin. Clean up and exit.
 	if (detected_by_plugin)
 		goto cleanup;
+	else {
+		PrintToScreen(L"No supported filesystem found at sd(%d,%d)\n", DriveIndex, SliceIndex);
+		goto cleanup;
+	}
 
 open_volume:
+	if (!SimpleFileSystem) {
+		PrintToScreen(L"No valid Simple File System protocol context exists!\n");
+		goto cleanup;
+	}
+
 	Status = uefi_call_wrapper(SimpleFileSystem->OpenVolume, 2, SimpleFileSystem, &Root);
 	if (EFI_ERROR(Status)) {
 		PrintToScreen(L"Failed to open volume: %r\n", Status);
 		goto cleanup;
 	}
 
-	if (!Path || StrLen(Path) == 0)
+	if (!Path)
 		Path = L"\\";
 
 	Status = uefi_call_wrapper(Root->Open, 5, Root, &Dir, Path, EFI_FILE_MODE_READ, 0);
@@ -321,6 +355,17 @@ open_volume:
 	FileInfo = AllocatePool(BufferSize);
 	if (!FileInfo) {
 		PrintToScreen(L"Failed to allocate memory to list directory\n");
+		goto cleanup;
+	}
+
+	Status = uefi_call_wrapper(Dir->GetInfo, 4, Dir, &gEfiFileInfoGuid, &BufferSize, FileInfo);
+	if (EFI_ERROR(Status)) {
+		PrintToScreen(L"Cannot get directory information: %r\n", Status);
+		goto cleanup;
+	}
+
+	if (!(FileInfo->Attribute & EFI_FILE_DIRECTORY)) {
+		PrintToScreen(L"'%s' is not a directory.\n", Path);
 		goto cleanup;
 	}
 
@@ -347,6 +392,9 @@ cleanup:
 	if (FileInfo)
 		FreePool(FileInfo);
 
+	if (Partitions)
+		FreePool(Partitions);
+
 	if (Dir)
 		uefi_call_wrapper(Dir->Close, 1, Dir);
 
@@ -366,6 +414,7 @@ lsblk(CHAR16 *args)
 	EFI_STATUS Status;
 	EFI_HANDLE *HandleBuffer = NULL;
 	UINTN HandleCount = 0;
+	UINTN i;
 	EFI_BLOCK_IO_PROTOCOL *BlockIo = NULL;
 	EFI_DEVICE_PATH_PROTOCOL *DevicePath = NULL;
 	EFI_GUID BlockIoProtocol = EFI_BLOCK_IO_PROTOCOL_GUID;
@@ -377,7 +426,7 @@ lsblk(CHAR16 *args)
 	}
 
 	PrintToScreen(L"Block devices found: %d\n", HandleCount);
-	for (UINTN i = 0; i < HandleCount; i++) {
+	for (i = 0; i < HandleCount; i++) {
 		Status = uefi_call_wrapper(BS->HandleProtocol, 3, HandleBuffer[i], &BlockIoProtocol, (void**)&BlockIo);
 		if (EFI_ERROR(Status)) {
 			PrintToScreen(L"Failed to get Block I/O protocol for handle %d: %r\n", i, Status);

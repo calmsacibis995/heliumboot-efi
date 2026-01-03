@@ -1,7 +1,7 @@
 /*
  * HeliumBoot/EFI - A simple UEFI bootloader.
  *
- * Copyright (c) 2025 Stefanos Stefanidis.
+ * Copyright (c) 2025, 2026 Stefanos Stefanidis.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -40,6 +40,6 @@
 EFI_STATUS
 DetectUFS(EFI_BLOCK_IO_PROTOCOL *BlockIo, UINT32 SliceStartLBA, void *sb_void)
 {
-    PrintToScreen(L"%s: not implemented yet!\n", __FUNCTION__);
-    return EFI_SUCCESS;
+    PrintToScreen(L"DetectUFS: not implemented yet!\n");
+    return EFI_UNSUPPORTED;
 }

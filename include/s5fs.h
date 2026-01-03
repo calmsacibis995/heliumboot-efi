@@ -1,7 +1,7 @@
 /*
  * HeliumBoot/EFI - A simple UEFI bootloader.
  *
- * Copyright (c) 2025 Stefanos Stefanidis.
+ * Copyright (c) 2025, 2026 Stefanos Stefanidis.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -43,7 +43,7 @@
 #define	NICFREE	50		/* number of superblock free blocks */
 #define	DIRSIZ	14
 
-struct s5_dirent {
+struct s5_direct {
     UINT16 d_ino;
     INT8 d_name[DIRSIZ];
 };
@@ -54,27 +54,27 @@ struct s5_dirent {
  * S5 superblock structure.
  */
 struct s5_superblock {
-    UINT16 s_isize;
-    INT32 s_fsize;
-    INT16 s_nfree;
-    INT32 s_free[NICFREE];
-    INT16 s_ninode;
-    UINT16 s_inode[NICINOD];
-    INT8 s_flock;
-    INT8 s_ilock;
-    INT8 s_fmod;
-    INT8 s_ronly;
-    INT32 s_time;
-    INT16 s_dinfo[4];
-    INT32 s_tfree;
-    UINT16 s_tinode;
-    INT8 s_fname[6];
-    INT8 s_fpack[6];
-    INT32 s_fill[12];
-    INT32 s_state;
-    INT32 s_magic;
-    UINT32 s_type;
-} __attribute__((packed));
+    UINT16	s_isize;	/* size in blocks of i-list */
+	INT32	s_fsize;	/* size in blocks of entire volume */
+	INT16	s_nfree;	/* number of addresses in s_free */
+	INT32	s_free[NICFREE];/* free block list */
+	INT16	s_ninode;	/* number of i-nodes in s_inode */
+	UINT16	s_inode[NICINOD];/* free i-node list */
+	INT8	s_flock;	/* lock during free list manipulation */
+	INT8	s_ilock;	/* lock during i-list manipulation */
+	INT8  	s_fmod; 	/* super block modified flag */
+	INT8	s_ronly;	/* mounted read-only flag */
+	INT32	s_time; 	/* last super block update */
+	INT16	s_dinfo[4];	/* device information */
+	INT32	s_tfree;	/* total free blocks*/
+	UINT16	s_tinode;	/* total free inodes */
+	INT8	s_fname[6];	/* file system name */
+	INT8	s_fpack[6];	/* file system pack name */
+	INT32	s_fill[12];	/* adjust to make sizeof filsys */
+	INT32	s_state;	/* file system state */
+	INT32	s_magic;	/* magic number to indicate new file system */
+	UINT32	s_type;		/* type of new file system */
+};
 
 #define	NADDR	13
 #define	NSADDR	(NADDR*sizeof(INT32)/sizeof(INT16))
@@ -110,6 +110,8 @@ struct s5_inode {
     INT32 i_oldsz;      /* i_size when you did the allocation */
 };
 
+#define S5ROOTINO   2
+
 /*
  * S5 mount private data.
  */
@@ -126,6 +128,19 @@ struct s5_mount {
     EFI_BLOCK_IO_PROTOCOL *bio;
     UINT32 slice_start_lba;
 };
+
+struct s5_dinode {
+    UINT16	di_mode;	/* mode and type of file */
+	INT16	di_nlink;    	/* number of links to file */
+	UINT16	di_uid;      	/* owner's user id */
+	UINT16	di_gid;      	/* owner's group id */
+	INT32	di_size;     	/* number of bytes in file */
+	INT8  	di_addr[39];	/* disk block addresses */
+	UINT8	di_gen;		/* file generation number */
+	INT32	di_atime;   	/* time last accessed */
+	INT32	di_mtime;   	/* time last modified */
+	INT32	di_ctime;   	/* time created */
+} __attribute__((packed));
 
 #define FsMAGIC	0xfd187e20	/* s_magic */
 
@@ -145,5 +160,6 @@ struct s5_mount {
 extern EFI_STATUS DetectS5(EFI_BLOCK_IO_PROTOCOL *BlockIo, UINT32 SliceStartLBA, void *sb_void);
 extern EFI_STATUS MountS5(EFI_BLOCK_IO_PROTOCOL *BlockIo, UINT32 SliceStartLBA, void *sb_buffer, void **mount_out);
 extern EFI_STATUS ReadS5Dir(void *mount_ctx, const CHAR16 *path);
+extern EFI_STATUS UmountS5(void *mount);
 
 #endif /* _S5FS_H_ */

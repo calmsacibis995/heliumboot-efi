@@ -34,36 +34,7 @@
 #ifndef _BOOT_H_
 #define _BOOT_H_
 
-#include "vtoc.h"
-#include "part.h"
-
-enum arg_type {
-    CMD_NO_ARGS,
-    CMD_OPTIONAL_ARGS,
-    CMD_REQUIRED_ARGS
-};
-
-struct boot_command_tab {
-	CHAR16 *cmd_name;		// Command name.
-	void (*cmd_func)(CHAR16 *args);		// Function pointer.
-	enum arg_type cmd_arg_type;		// Command type
-	CHAR16 *cmd_usage;	// Command usage.
-};
-
-typedef EFI_STATUS (*fs_detect_fn)(EFI_BLOCK_IO_PROTOCOL *bio, UINT32 slice_lba, void *sb_buffer);
-typedef EFI_STATUS (*fs_mount_fn)(EFI_BLOCK_IO_PROTOCOL *bio, UINT32 slice_lba, void *sb_buffer, void **mount_out);
-typedef EFI_STATUS (*fs_list_fn)(void *mount_ctx, const CHAR16 *path);
-
-/*
- * Filesystem table entry structure.
- */
-struct fs_tab_entry {
-	CHAR16 *fs_name;		// Filesystem name.
-	fs_detect_fn detect_fs;	// Filesystem detection function.
-	UINTN sb_size;			// Filesystem superblock size.
-	fs_mount_fn mount_fs;	// Filesystem mount function.
-	fs_list_fn list_dir;	// Filesystem directory listing function.
-};
+#define ARRAY_SIZE(arr)  (sizeof(arr) / sizeof((arr)[0]))
 
 // Global functions and variables, sorted by filename.
 
@@ -80,7 +51,6 @@ extern const CHAR16 *getbuildno(void);
 // boot.c
 extern BOOLEAN exit_flag;
 extern EFI_HANDLE gImageHandle;
-extern void CommandMonitor(void);
 
 // exec_efi.c
 extern BOOLEAN IsEfiBinary(const void *Buffer);
@@ -92,45 +62,22 @@ extern BOOLEAN IsElf64(UINT8 *Header);
 // helpers.c
 extern UINTN StrDecimalToUintn(CHAR16 *str);
 extern void SplitCommandLine(CHAR16 *line, CHAR16 **command, CHAR16 **arguments);
-extern EFI_STATUS MountAtLba(EFI_BLOCK_IO_PROTOCOL *ParentBlockIo, EFI_LBA StartLba, EFI_SIMPLE_FILE_SYSTEM_PROTOCOL **FileSystem);
-extern EFI_STATUS FindSysVPartition(struct mbr_partition *Partitions, UINT32 *PartitionStart);
-extern EFI_STATUS GetPartitionData(EFI_BLOCK_IO_PROTOCOL *BlockIo, struct mbr_partition *Partitions);
 extern void HeliumBootPanic(EFI_STATUS Status, const CHAR16 *fmt, ...);
 extern UINT32 SwapBytes32(UINT32 val);
 extern UINT16 SwapBytes16(UINT16 val);
 extern UINT64 GetTimeSeconds(void);
-extern EFI_STATUS ReadFile(EFI_FILE_PROTOCOL *File, CHAR16 *Buffer, UINTN BufferSize, UINTN *Actual);
 extern void *MemMove(void *dst, const void *src, UINTN len);
+extern void *MemCopy(void *Dest, const void *Src, UINTN Length);
 extern CHAR16 *GetScreenInfo(void);
 #if defined(X86_64_BLD)
 extern void AsmCpuid(UINT32 Leaf, UINT32 subleaf, UINT32 *Eax, UINT32 *Ebx, UINT32 *Ecx, UINT32 *Edx);
 #endif
 extern UINT64 GetTotalMemoryBytes(void);
+extern CHAR16 *StrStr(const CHAR16 *haystack, const CHAR16 *needle);
 
 // loadfile.c
 extern EFI_STATUS LoadFile(CHAR16 *args);
 extern EFI_STATUS LoadElfBinary(EFI_FILE_HANDLE File);
-
-// commands.c
-extern void about(CHAR16 *args);
-extern void boot(CHAR16 *args);
-extern void boot_efi(CHAR16 *args);
-extern void cls(CHAR16 *args);
-extern void echo(CHAR16 *args);
-extern void exit(CHAR16 *args);
-extern void help(CHAR16 *args);
-extern void hinv(CHAR16 *args);
-extern void ls(CHAR16 *args);
-extern void lsblk(CHAR16 *args);
-extern void reboot(CHAR16 *args);
-extern void print_revision(CHAR16 *args);
-extern void print_version(CHAR16 *args);
-
-// cmd_table.c
-extern struct boot_command_tab cmd_tab[];
-
-// fs_table.c
-extern struct fs_tab_entry fs_tab[];
 
 // video.c
 extern EFI_STATUS InitVideo(void);
@@ -143,8 +90,5 @@ extern void UpdateProgressBar(INTN Id, UINTN NewProgress);
 extern void GetScreenSize(UINTN *ScreenWidth, UINTN *ScreenHeight);
 extern BOOLEAN VideoInitFlag;
 extern BOOLEAN FramebufferAllowed;
-
-// vtoc.c
-extern EFI_STATUS ReadVtoc(struct svr4_vtoc *OutVtoc, EFI_BLOCK_IO_PROTOCOL *BlockIo, UINT32 PartitionStart);
 
 #endif /* _BOOT_H_ */

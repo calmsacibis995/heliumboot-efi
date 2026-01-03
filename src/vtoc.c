@@ -46,7 +46,7 @@ ReadVtoc(struct svr4_vtoc *OutVtoc, EFI_BLOCK_IO_PROTOCOL *BlockIo, UINT32 Parti
     UINTN BlockSize;
     EFI_LBA PdinfoLba = PartitionStart + VTOC_SEC;
 
-    if (!BlockIo || !BlockIo->Media || BlockIo->Media->BlockSize == 0) {
+    if (!OutVtoc || !BlockIo || !BlockIo->Media || BlockIo->Media->BlockSize == 0) {
         PrintToScreen(L"OutVtoc and BlockIo are NULL\n");
         return EFI_INVALID_PARAMETER;
     }
@@ -89,14 +89,7 @@ ReadVtoc(struct svr4_vtoc *OutVtoc, EFI_BLOCK_IO_PROTOCOL *BlockIo, UINT32 Parti
         return EFI_COMPROMISED_DATA;
     }
 
-    OutVtoc = AllocateZeroPool(sizeof(struct svr4_vtoc));
-    if (!OutVtoc) {
-        PrintToScreen(L"Failed to allocate memory for VTOC\n");
-        uefi_call_wrapper(gBS->FreePool, 1, Buffer);
-        return EFI_OUT_OF_RESOURCES;
-    }
-
-    CopyMem(OutVtoc, Vtoc, sizeof(struct svr4_vtoc));
+    MemMove(OutVtoc, Vtoc, sizeof(struct svr4_vtoc));
     uefi_call_wrapper(gBS->FreePool, 1, Buffer);
 
     return EFI_SUCCESS;

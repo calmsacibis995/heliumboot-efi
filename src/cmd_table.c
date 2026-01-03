@@ -34,7 +34,7 @@
 #include <efi.h>
 #include <efilib.h>
 
-#include "boot.h"
+#include "cmd.h"
 
 struct boot_command_tab cmd_tab[] = {
 	{ L"?", help, CMD_NO_ARGS, L"?: help" },
@@ -42,12 +42,12 @@ struct boot_command_tab cmd_tab[] = {
 	{ L"boot", boot, CMD_REQUIRED_ARGS, L"boot: sd(x,y)FILE [ARGS]" },
 	{ L"clear", cls, CMD_NO_ARGS, L"clear: cls" },
 	{ L"cls", cls, CMD_NO_ARGS, L"cls: cls" },
-	{ L"dir", ls, CMD_OPTIONAL_ARGS, L"dir: ls" },
+	{ L"dir", ls, CMD_REQUIRED_ARGS, L"dir: ls" },
 	{ L"echo", echo, CMD_REQUIRED_ARGS, L"echo: STRING" },
 	{ L"exit", exit, CMD_NO_ARGS, L"exit: exit" },
 	{ L"help", help, CMD_NO_ARGS, L"help: help" },
 	{ L"hinv", hinv, CMD_NO_ARGS, L"hinv: hinv" },
-	{ L"ls", ls, CMD_OPTIONAL_ARGS, L"ls: sd(x,y) or DRIVE:\\" },
+	{ L"ls", ls, CMD_REQUIRED_ARGS, L"ls: sd(x,y)[PATH]" },
 	{ L"lsblk", lsblk, CMD_NO_ARGS, L"lsblk: lsblk" },
 	{ L"reboot", reboot, CMD_NO_ARGS, L"reboot: reboot" },
 	{ L"revision", print_revision, CMD_NO_ARGS, L"revision: revision" },

@@ -1,7 +1,7 @@
 /*
  * HeliumBoot/EFI - A simple UEFI bootloader.
  *
- * Copyright (c) 2025 Stefanos Stefanidis.
+ * Copyright (c) 2025, 2026 Stefanos Stefanidis.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -151,5 +151,6 @@ struct ufs_superblock {
 extern EFI_STATUS DetectUFS(EFI_BLOCK_IO_PROTOCOL *BlockIo, UINT32 SliceStartLBA, void *sb_void);
 extern EFI_STATUS MountUFS(EFI_BLOCK_IO_PROTOCOL *BlockIo, UINT32 SliceStartLBA, void *sb_buffer, void **mount_out);
 extern EFI_STATUS ReadUFSDir(void *mount_ctx, const CHAR16 *path);
+extern EFI_STATUS UmountUFS(void *mount);
 
 #endif /* UFS_H_ */

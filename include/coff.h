@@ -1,7 +1,7 @@
 /*
  * HeliumBoot/EFI - A simple UEFI bootloader.
  *
- * Copyright (c) 2025, 2026 Stefanos Stefanidis.
+ * Copyright (c) 2026 Stefanos Stefanidis.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -31,19 +31,9 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef _PART_H_
-#define _PART_H_
+#ifndef _COFF_H_
+#define _COFF_H_
 
-#include <efi.h>
-#include <efilib.h>
 
-struct mbr_partition {
-    UINT8 boot_indicator;
-    UINT8 starting_chs[3];
-    UINT8 os_type;
-    UINT8 ending_chs[3];
-    UINT32 starting_lba;
-    UINT32 size_in_lba;
-} __attribute__((packed));
 
-#endif /* _PART_H_ */
+#endif /* _COFF_H_ */

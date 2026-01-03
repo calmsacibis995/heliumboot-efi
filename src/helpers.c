@@ -80,108 +80,6 @@ StrDecimalToUintn(CHAR16 *str)
     return result;
 }
 
-static EFI_STATUS
-PartitionReadBlocks(EFI_BLOCK_IO_PROTOCOL *This, UINT32 MediaId, EFI_LBA Lba, UINTN BufferSize, VOID *Buffer)
-{
-    PARTITION_BLOCK_IO *PartitionBlockIo = (PARTITION_BLOCK_IO *)This;
-    EFI_BLOCK_IO_PROTOCOL *ParentBlockIo = PartitionBlockIo->ParentBlockIo;
-
-    EFI_LBA ParentLba = PartitionBlockIo->StartLba + Lba;
-
-    return uefi_call_wrapper(ParentBlockIo->ReadBlocks, 5, ParentBlockIo, MediaId, ParentLba, BufferSize, Buffer);
-}
-
-EFI_STATUS
-MountAtLba(EFI_BLOCK_IO_PROTOCOL *ParentBlockIo, EFI_LBA StartLba, EFI_SIMPLE_FILE_SYSTEM_PROTOCOL **FileSystem)
-{
-    EFI_STATUS Status;
-    PARTITION_BLOCK_IO *PartitionBlockIo = NULL;
-    EFI_HANDLE PartitionHandle = NULL;
-
-    PartitionBlockIo = AllocateZeroPool(sizeof(PARTITION_BLOCK_IO));
-    if (!PartitionBlockIo)
-        return EFI_OUT_OF_RESOURCES;
-
-    PartitionBlockIo->ParentBlockIo = ParentBlockIo;
-    PartitionBlockIo->StartLba = StartLba;
-
-    PartitionBlockIo->BlockIo.Media = ParentBlockIo->Media;
-    PartitionBlockIo->BlockIo.Revision = ParentBlockIo->Revision;
-    PartitionBlockIo->BlockIo.Reset = ParentBlockIo->Reset;
-    PartitionBlockIo->BlockIo.ReadBlocks = PartitionReadBlocks;
-    PartitionBlockIo->BlockIo.FlushBlocks = ParentBlockIo->FlushBlocks;
-
-    PartitionHandle = NULL;
-    Status = uefi_call_wrapper(BS->InstallMultipleProtocolInterfaces, 5, &PartitionHandle, &BlockIoProtocol,
-        &PartitionBlockIo->BlockIo, NULL);
-    if (EFI_ERROR(Status)) {
-        PrintToScreen(L"No filesystem detected at LBA %llu: %r\n", StartLba, Status);
-        uefi_call_wrapper(BS->UninstallMultipleProtocolInterfaces, 5, PartitionHandle, &BlockIoProtocol,
-            &PartitionBlockIo->BlockIo, NULL);
-        return Status;
-    }
-
-    return EFI_SUCCESS;
-}
-
-EFI_STATUS
-FindSysVPartition(struct mbr_partition *Partitions, UINT32 *PartitionStart)
-{
-	UINTN i;
-
-	for (i = 0; i < 4; i++) {
-		if (Partitions[i].os_type == 0x63) {
-			*PartitionStart = Partitions[i].starting_lba;
-			PrintToScreen(L"Found System V partition at LBA %u\n", *PartitionStart);
-			return EFI_SUCCESS;
-		}
-	}
-
-	return EFI_NOT_FOUND;
-}
-
-/*
- * Find the start of the partition list.
- */
-EFI_STATUS
-GetPartitionData(EFI_BLOCK_IO_PROTOCOL *BlockIo, struct mbr_partition *Partitions)
-{
-	EFI_STATUS Status;
-	UINTN BlockSize = BlockIo->Media->BlockSize;
-	UINT8 *MbrBuffer;
-
-	if (BlockIo->Media->LogicalPartition) {
-		PrintToScreen(L"The drive chosen is not a drive.\n");
-		return EFI_UNSUPPORTED;
-	}
-
-	Status = uefi_call_wrapper(BS->AllocatePool, 3, EfiLoaderData, BlockSize, (void**)&MbrBuffer);
-	if (EFI_ERROR(Status)) {
-		Print(L"Failed to allocate memory for MBR: %r\n", Status);
-		return Status;
-	}
-
-	Status = uefi_call_wrapper(BlockIo->ReadBlocks, 5, BlockIo,
-		BlockIo->Media->MediaId, 0, BlockSize, MbrBuffer);
-	if (EFI_ERROR(Status)) {
-		PrintToScreen(L"Failed to read MBR: %r\n", Status);
-		FreePool(MbrBuffer);
-		return Status;
-	}
-
-	// Check for valid MBR signature.
-	if (MbrBuffer[510] != 0x55 || MbrBuffer[511] != 0xAA) {
-		PrintToScreen(L"Invalid MBR signature.\n");
-		FreePool(MbrBuffer);
-		return EFI_NOT_FOUND;
-	}
-
-	Partitions = (struct mbr_partition *)(MbrBuffer + 0x1BE);
-
-	FreePool(MbrBuffer);
-	return EFI_SUCCESS;
-}
-
 /*
  * Function:
  * HeliumBootPanic()
@@ -283,28 +181,16 @@ MemMove(void *dst, const void *src, UINTN len)
 	return dst;
 }
 
-EFI_STATUS
-ReadFile(EFI_FILE_PROTOCOL *File, CHAR16 *Buffer, UINTN BufferSize, UINTN *Actual)
+void *
+MemCopy(void *Dest, const void *Src, UINTN Length)
 {
-	EFI_STATUS Status;
-	UINTN ReadSize;
+	UINT8 *d = (UINT8 *)Dest;
+	const UINT8 *s = (const UINT8 *)Src;
 
-	if (File == NULL) {
-		*Actual = 0;
-		return EFI_NOT_READY;
-	}
+	while (Length--)
+		*d++ = *s++;
 
-	ReadSize = (UINTN)BufferSize;
-
-	Status = uefi_call_wrapper(File->Read, 3, File, &ReadSize, Buffer);
-	*Actual = ReadSize;
-	if (EFI_ERROR(Status))
-		return Status;
-
-	if (*Actual == BufferSize)
-		return EFI_SUCCESS;
-	else
-		return (*Actual == 0) ? EFI_NOT_FOUND : EFI_END_OF_FILE;
+	return Dest;
 }
 
 CHAR16 *
@@ -406,4 +292,31 @@ GetTotalMemoryBytes(void)
 
 	FreePool(MemMap);
 	return Total;
+}
+
+CHAR16 *
+StrStr(const CHAR16 *haystack, const CHAR16 *needle)
+{
+	if (!haystack || !needle)
+		return NULL;
+
+	if (*needle == L'\0')
+		return (CHAR16 *)haystack;
+
+	while (*haystack != L'\0') {
+		const CHAR16 *h = haystack;
+		const CHAR16 *n = needle;
+
+		while (*h != L'\0' && *n != L'\0' && *h == *n) {
+			h++;
+			n++;
+		}
+
+		if (*n == L'\0')
+			return (CHAR16 *)haystack;
+
+		haystack++;
+	}
+
+	return NULL;
 }
