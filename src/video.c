@@ -1,7 +1,7 @@
 /*
  * HeliumBoot/EFI - A simple UEFI bootloader.
  *
- * Copyright (c) 2025 Stefanos Stefanidis.
+ * Copyright (c) 2025, 2026 Stefanos Stefanidis.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -431,8 +431,8 @@ static void
 CurRight(void)
 {
 	if (++XPos == MAX_COLUMN) {
-		XPos = MAX_COLUMN - 1;
-		CurUp();
+		XPos = 0;
+		CurDown();
 	}
 }
 

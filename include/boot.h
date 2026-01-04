@@ -36,6 +36,8 @@
 
 #define ARRAY_SIZE(arr)  (sizeof(arr) / sizeof((arr)[0]))
 
+#define MIN(a, b)   ((a) < (b) ? (a) : (b))
+
 // Global functions and variables, sorted by filename.
 
 // vers.c

@@ -261,7 +261,57 @@ ls(CHAR16 *args)
 		if (SliceIndex < Vtoc->v_nparts) {
 			SectorStart = Vtoc->v_part[SliceIndex].p_start;
 			SliceLBA = SectorStart;
-			PrintToScreen(L"VTOC slice %u, starting sector: %u\n", SliceIndex, SectorStart);
+			switch (Vtoc->v_part[SliceIndex].p_tag) {
+				case V_NOSLICE:
+					PrintToScreen(L"VTOC slice %u is unassigned.\n", SliceIndex);
+					goto cleanup;
+				case V_BOOT:
+					PrintToScreen(L"VTOC slice %u, starting sector: %u (master boot record)\n", SliceIndex, SectorStart);
+					PrintToScreen(L"Cannot list the contents of the master boot record!\n");
+					goto cleanup;
+				case V_ROOT:
+					PrintToScreen(L"VTOC slice %u, starting sector: %u (rootfs)\n", SliceIndex, SectorStart);
+					break;
+				case V_SWAP:
+					PrintToScreen(L"VTOC slice %u, starting sector: %u (swap space)\n", SliceIndex, SectorStart);
+					PrintToScreen(L"Cannot list the contents of the swap space!\n");
+					goto cleanup;
+				case V_USR:
+					PrintToScreen(L"VTOC slice %u, starting sector: %u (/usr)\n", SliceIndex, SectorStart);
+					break;
+				case V_BACKUP:
+					PrintToScreen(L"VTOC slice %u, starting sector: %u (backup)\n", SliceIndex, SectorStart);
+					PrintToScreen(L"This is a placeholder for the entire drive.\n", SliceIndex, SectorStart);
+					goto cleanup;
+				case V_ALTS:
+					PrintToScreen(L"VTOC slice %u, starting sector: %u (alternate sector space)\n", SliceIndex, SectorStart);
+					PrintToScreen(L"Cannot list the contents of the alternate sector space!\n");
+					goto cleanup;
+				case V_OTHER:
+					PrintToScreen(L"VTOC slice %u, starting sector: %u (Non-SysV)\n", SliceIndex, SectorStart);
+					PrintToScreen(L"Cannot list the contents of the non-SysV area!\n");
+					goto cleanup;
+				case V_ALTTRK:
+					PrintToScreen(L"VTOC slice %u, starting sector: %u (alternate track space)\n", SliceIndex, SectorStart);
+					PrintToScreen(L"Cannot list the contents of the alternate track space!\n");
+					goto cleanup;
+				case V_STAND:
+					PrintToScreen(L"VTOC slice %u, starting sector: %u (/stand)\n", SliceIndex, SectorStart);
+					break;
+				case V_VAR:
+					PrintToScreen(L"VTOC slice %u, starting sector: %u (/var)\n", SliceIndex, SectorStart);
+					break;
+				case V_HOME:
+					PrintToScreen(L"VTOC slice %u, starting sector: %u (/home)\n", SliceIndex, SectorStart);
+					break;
+				case V_DUMP:
+					PrintToScreen(L"VTOC slice %u, starting sector: %u (dump)\n", SliceIndex, SectorStart);
+					PrintToScreen(L"Cannot list the contents of the dump area!\n");
+					goto cleanup;
+				default:
+					PrintToScreen(L"No valid VTOC slice %u (contains invalid slice tag %d)\n", SliceIndex, Vtoc->v_part[SliceIndex].p_tag);
+					goto cleanup;
+			}
 		} else {
 			PrintToScreen(L"Invalid slice index %u\n", SliceIndex);
 			goto cleanup;

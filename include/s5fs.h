@@ -37,6 +37,8 @@
 #include <efi.h>
 #include <efilib.h>
 
+#include <assert.h>
+
 #include "vnode.h"
 
 #define	NICINOD	100		/* number of superblock inodes */
@@ -76,6 +78,8 @@ struct s5_superblock {
 	UINT32	s_type;		/* type of new file system */
 };
 
+static_assert(sizeof(struct s5_superblock) == 512);
+
 #define	NADDR	13
 #define	NSADDR	(NADDR*sizeof(INT32)/sizeof(INT16))
 
@@ -103,7 +107,7 @@ struct s5_inode {
 	INT32   i_mapcnt;       /* number of mappings of pages */
 	UINT32  i_vcode;	/* version code attribute */
 	struct vnode i_vnode;	/* Contains an instance of a vnode */
-	INT32	*i_map;		/* block list for the corresponding file */
+	INT32	*i_map;		/* block list for the corresponding file (unused for UEFI) */
 	UINT32	i_rdev;		/* rdev field for block/char specials */
 
     INT32 i_mapsz;      /* kmem_alloc'ed size */
@@ -118,10 +122,11 @@ struct s5_inode {
 struct s5_mount {
     struct s5_superblock sb;
     UINT32 bsize;
+	UINT32 bshift;
+	UINT32 bmask;
     UINT32 inopb;
+	UINT32 inoshift;
     UINT32 nindir;
-    UINT32 bshift;
-    UINT32 bmask;
     UINT32 nshift;
     UINT32 nmask;
     struct vnode *root_vnode;
@@ -142,6 +147,8 @@ struct s5_dinode {
 	INT32	di_ctime;   	/* time created */
 } __attribute__((packed));
 
+static_assert(sizeof(struct s5_dinode) == 64);
+
 #define FsMAGIC	0xfd187e20	/* s_magic */
 
 #define	SUPERB	((INT32)1)	/* block number of the super block */
@@ -154,6 +161,15 @@ struct s5_dinode {
 #define Fs1b	1	/* 512-byte blocks */
 #define Fs2b	2	/* 1024-byte blocks */
 #define Fs4b	3	/* 2048-byte blocks */
+
+#define FsMAXBSIZE	8192
+
+#define SUPERBOFF	512
+
+// Macro functions
+
+#define FsITOD(fs, x)	(INT32)(((UINT32)(x)+(2*(fs)->inopb-1)) >> (fs)->inoshift)
+#define FsITOO(fs, x)	(INT32)(((UINT32)(x)+(2*(fs)->inopb-1)) & ((fs)->inopb-1))
 
 // Public functions
 

@@ -69,7 +69,7 @@ struct svr4_vtoc {
     UINT16 v_pad;           /* padding */
     UINT32 v_reserved[10];  /* reserved */
     struct svr4_partition v_part[V_NUMPAR]; /* partition table */
-    INT32 timestamp[V_NUMPAR]; /* partition timestamp */
+    INT32 timestamp[V_NUMPAR]; /* partition timestamp (Solaris/illumos doesn't support this anymore) */
 } __attribute__((packed));
 
 /*
@@ -118,6 +118,21 @@ struct svr4_alt_info {
     struct svr4_alt_table alt_trk;  /* bad track table */
     struct svr4_alt_table alt_sec;  /* bad sector table */
 };
+
+/* Partition identification tags */
+#define V_NOSLICE   0x00        /* Unassigned slice */
+#define V_BOOT      0x01		/* Boot slice */
+#define V_ROOT		0x02		/* Root filesystem */
+#define V_SWAP		0x03		/* Swap filesystem */
+#define V_USR		0x04		/* Usr filesystem */
+#define V_BACKUP	0x05		/* full disk */
+#define V_ALTS      0x06        /* alternate sector space */
+#define V_OTHER     0x07        /* non-unix space */
+#define V_ALTTRK	0x08		/* alternate track space */
+#define V_STAND		0x09		/* Stand slice */
+#define V_VAR		0x0a		/* Var slice */
+#define V_HOME		0x0b		/* Home slice */
+#define V_DUMP		0x0c		/* dump slice */
 
 extern EFI_STATUS ReadVtoc(struct svr4_vtoc *OutVtoc, EFI_BLOCK_IO_PROTOCOL *BlockIo, UINT32 PartitionStart);
 
