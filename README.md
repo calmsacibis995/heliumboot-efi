@@ -32,6 +32,10 @@ HeliumBoot/EFI has these features that distinguish it from other simple bootload
 To build HeliumBoot/EFI, you will need:
  * `gcc` (for cross compiling, see the [Cross compilation](#Cross-compilation) section.
  * `make`
+ * `mtools`
+ * `qemu` (for testing your new build)
+ * `ovmf`
+ * `xorriso` (for making a bootable ISO)
 
 ### Cloning the repository
 `git clone https://github.com/calmsacibis995/heliumboot-efi.git`
