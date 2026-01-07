@@ -34,7 +34,7 @@ sel_build:
 	@echo "make x86_64_debug_build:   Build HeliumBoot/Debug for x86_64"
 	@echo "make aarch64_debug_build:  Build HeliumBoot/Debug for AArch64"
 	@echo "make riscv64_debug_build:  Build HeliumBoot/Debug for 64-bit RISC-V"
-	@make "make x86_64_iso:           Build HeliumBoot ISO for x86_64"
+	@echo "make x86_64_iso:           Build HeliumBoot ISO for x86_64"
 	@echo "make aarch64_iso:          Build HeliumBoot ISO for AArch64"
 
 clean:
