@@ -2,21 +2,10 @@
 # Environment variables for cross-compiling HeliumBoot.
 #
 
+HOST_OS := $(shell uname -s)
 HOST_ARCH := $(shell uname -m)
 
 TARGET_ARCH ?= $(HOST_ARCH)
-
-ifeq ($(TARGET_ARCH),$(HOST_ARCH))
-    CROSS_PREFIX :=
-else ifeq ($(TARGET_ARCH),x86_64)
-    CROSS_PREFIX := $(X86_64_CROSS_PREFIX)
-else ifeq ($(TARGET_ARCH),aarch64)
-    CROSS_PREFIX := $(AARCH64_CROSS_PREFIX)
-else ifeq ($(TARGET_ARCH),riscv64)
-    CROSS_PREFIX := $(RISCV64_CROSS_PREFIX)
-else
-    $(error Unsupported TARGET_ARCH: $(TARGET_ARCH))
-endif
 
 X86_64_PREFIX = x86_64-linux-gnu-
 X86_64_CC = $(X86_64_PREFIX)gcc
@@ -32,6 +21,25 @@ RISCV64_PREFIX = riscv64-linux-gnu-
 RISCV64_CC = $(RISCV64_PREFIX)gcc
 RISCV64_LD = $(RISCV64_PREFIX)ld
 RISCV64_OBJCOPY = $(RISCV64_PREFIX)objcopy
+
+ifeq ($(HOST_OS),Darwin)
+	X86_64_PREFIX = x86_64-elf-
+	AARCH64_PREFIX = aarch64-none-elf-
+endif
+
+ifeq ($(TARGET_ARCH),$(HOST_ARCH))
+    CROSS_PREFIX :=
+else ifeq ($(TARGET_ARCH),x86_64)
+    CROSS_PREFIX := $(X86_64_PREFIX)
+else ifeq ($(TARGET_ARCH),aarch64)
+    CROSS_PREFIX := $(AARCH64_PREFIX)
+else ifeq ($(TARGET_ARCH),arm64)
+    CROSS_PREFIX := $(AARCH64_PREFIX)
+else ifeq ($(TARGET_ARCH),riscv64)
+    CROSS_PREFIX := $(RISCV64_PREFIX)
+else
+    $(error Unsupported TARGET_ARCH: $(TARGET_ARCH))
+endif
 
 GNU_EFI_DIR = gnu-efi
 EFI_INC_DIR = $(GNU_EFI_DIR)/inc
