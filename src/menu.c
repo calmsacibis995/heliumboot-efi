@@ -111,7 +111,7 @@ MenuDisplayFn(void)
 		else
 			PrintToScreen(L"    ");
 
-		UnicodeSPrint(Buf, sizeof(Buf), L"%d", i);
+		UnicodeSPrint(Buf, sizeof(Buf), L"%d", i + 1);
 		PrintToScreen(Buf);
 		PrintToScreen(L".");
 		PrintToScreen(MainMenu[i].Name);
