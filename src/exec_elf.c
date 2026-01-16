@@ -46,24 +46,25 @@
 
 #if defined(X86_64_BLD) || defined(__x86_64__)
 static Elf64_Half ArchNum = EM_X86_64;
-static const CHAR16 *ArchName = "x86_64";
+static const CHAR16 *ArchName = L"x86_64";
 #elif defined(AARCH64_BLD) || defined(__aarch64__)
 static Elf64_Half ArchNum = EM_AARCH64;
-static const CHAR16 *ArchName = "aarch64";
+static const CHAR16 *ArchName = L"aarch64";
 #elif defined(RISCV64_BLD) || defined(__riscv)
 static Elf64_Half ArchNum = EM_RISCV;
-static const CHAR16 *ArchName = "riscv64";
+static const CHAR16 *ArchName = L"riscv64";
 #elif defined(MIPS64_BLD) || defined(__mips64__)
 static Elf64_Half ArchNum = EM_MIPS;
-static const CHAR16 *ArchName = "mips64";
+static const CHAR16 *ArchName = L"mips64";
 #elif defined(ITANIUM_BLD) || defined(__ia64__)
 static Elf64_Half ArchNum = EM_IA_64;
-static const CHAR16 *ArchName = "ia64";
+static const CHAR16 *ArchName = L"ia64";
 #endif
 
 BOOLEAN
 IsElf64(UINT8 *Header)
 {
+    CHAR16 *TargArch;
     Elf64_Ehdr *ElfHdr = (Elf64_Ehdr *)Header;
 
     if (ElfHdr->e_ident[EI_MAG0] != ELFMAG0 && ElfHdr->e_ident[EI_MAG1] != ELFMAG1 && ElfHdr->e_ident[EI_MAG2] != ELFMAG2 && ElfHdr->e_ident[EI_MAG3] != ELFMAG3)
@@ -86,7 +87,36 @@ IsElf64(UINT8 *Header)
         return FALSE;
 
     if (ElfHdr->e_machine != ArchNum) {
-        PrintToScreen(L"This is a valid ELF file, but it's for a processor other than the current machine's processor.\n");
+        switch (ElfHdr->e_machine) {
+            case EM_NONE:
+                TargArch = L"an architecture that is not specified";
+                break;
+            case EM_386:
+                TargArch = L"i386";
+                break;
+            case EM_X86_64:
+                TargArch = L"x86_64";
+                break;
+            case EM_ARM:
+                TargArch = L"arm";
+                break;
+            case EM_AARCH64:
+                TargArch = L"aarch64";
+                break;
+            case EM_RISCV:
+                TargArch = L"riscv64";
+                break;
+            case EM_IA_64:
+                TargArch = L"Intel Itanium";
+                break;
+            case EM_MIPS:
+                TargArch = L"mips";
+                break;
+            default:
+                TargArch = L"an architecture that HeliumBoot does not support";
+                break;
+        }
+        PrintToScreen(L"This is a valid ELF file, but it is for %s, but you are running on %s.\n", TargArch, ArchName);
         return FALSE;
     }
 

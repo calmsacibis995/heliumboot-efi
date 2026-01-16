@@ -41,6 +41,8 @@
 #include <elf.h>
 
 #include "boot.h"
+#include "disk.h"
+#include "vtoc.h"
 
 /*
  * Function:
@@ -59,6 +61,7 @@ LoadFile(CHAR16 *args)
 	EFI_STATUS Status;
 	EFI_FILE_HANDLE File, RootFS;
 	EFI_LOADED_IMAGE *LoadedImage;
+	EFI_BLOCK_IO_PROTOCOL *BlockIo = NULL;
 	UINTN ReadSize;
 	UINT8 Header[64];
 	CHAR16 *Path;
@@ -66,37 +69,60 @@ LoadFile(CHAR16 *args)
 	UINTN DriveIndex = 0;
 	UINTN SliceIndex = 0;
 
-	// Process sd(x,y). We also support X:\, where X is a UEFI drive or partition number.
-	// sd(x,y) should be used by disks with VTOC, X:\ by everything else.
-	if (args && StrnCmp(args, L"sd(", 3) == 0) {
-		CHAR16 *p = args + 3;
-		UINTN X = 0, Y = 0;
+	// Process sd(x,y) only.
+	if (!args || StrnCmp(args, L"sd(", 3) != 0) {
+		PrintToScreen(L"Only sd(X,Y)[path] syntax is supported\n");
+		return EFI_INVALID_PARAMETER;
+	}
 
-		while (*p >= L'0' && *p <= L'9')
-			X = X * 10 + (*p++ - L'0');
+	CHAR16 *p = args + 3;
+	UINTN X = 0, Y = 0;
+	BOOLEAN have_x = FALSE;
+	BOOLEAN have_y = FALSE;
 
-		if (*p == L',' || *p == L' ')
-			p++;
+	while (*p >= L'0' && *p <= L'9') {
+		have_x = TRUE;
+		X = X * 10 + (*p++ - L'0');
+	}
 
-		while (*p >= L'0' && *p <= L'9')
-			Y = Y * 10 + (*p++ - L'0');
+	if (!have_x || *p != L',') {
+		PrintToScreen(L"Invalid sd(X,Y) format\n");
+		return EFI_INVALID_PARAMETER;
+	}
 
-		if (*p != L')') {
-			PrintToScreen(L"Invalid sd(X,Y) format\n");
-			return EFI_INVALID_PARAMETER;
-		}
+	p++;
 
-		p++;
-		DriveIndex = X;
-		SliceIndex = Y;
+	while (*p >= L'0' && *p <= L'9') {
+		have_y = TRUE;
+		Y = Y * 10 + (*p++ - L'0');
+	}
 
-		if (*p == L':' && *(p+1) == L'\\')
-			Path = p + 2;
-		else
-			Path = L"\\";
-	} else if (args && StrLen(args) > 2 && args[1] == L':' && args[2] == L'\\') {
-		DriveIndex = args[0] - L'0';
-		Path = &args[3];
+	if (!have_y || *p != L')') {
+		PrintToScreen(L"Invalid sd(X,Y) format\n");
+		return EFI_INVALID_PARAMETER;
+	}
+
+	p++;
+
+	DriveIndex = X;
+	SliceIndex = Y;
+
+	if (SliceIndex > V_NUMPAR - 1) {
+		PrintToScreen(L"Invalid slice number %d\n", SliceIndex);
+		return EFI_INVALID_PARAMETER;
+	}
+
+	if (*p == L'\0')
+		Path = L"\\";
+	else if (*p == L'\\')
+		Path = p;
+	else {
+		static CHAR16 PathBuf[256];
+
+		PathBuf[0] = L'\\';
+		StrnCpy(PathBuf + 1, p, ARRAY_SIZE(PathBuf) - 2);
+		PathBuf[ARRAY_SIZE(PathBuf) - 1] = L'\0';
+		Path = PathBuf;
 	}
 
 	Status = uefi_call_wrapper(gBS->HandleProtocol, 3, gImageHandle, &gEfiLoadedImageProtocolGuid, (VOID **)&LoadedImage);
@@ -111,6 +137,16 @@ LoadFile(CHAR16 *args)
 		return Status;
 	}
 
+	Status = GetWholeDiskByIndex(DriveIndex, &BlockIo);
+	if (EFI_ERROR(Status)) {
+		PrintToScreen(L"Cannot get whole disk by index: %r\n", Status);
+		return Status;
+	}
+
+	if (BlockIo->Media->RemovableMedia && !BlockIo->Media->LogicalPartition)
+		goto open_volume;
+
+open_volume:
 	Status = uefi_call_wrapper(RootFS->Open, 5, RootFS, &File, Path, EFI_FILE_MODE_READ, 0);
 	if (EFI_ERROR(Status)) {
 		PrintToScreen(L"Cannot open file %s: %r\n", Path, Status);

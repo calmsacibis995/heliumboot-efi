@@ -225,7 +225,7 @@ ls(CHAR16 *args)
 
 	Status = GetWholeDiskByIndex(DriveIndex, &BlockIo);
 	if (EFI_ERROR(Status)) {
-		PrintToScreen(L"Invalid disk index %u\n", DriveIndex);
+		PrintToScreen(L"Cannot get whole disk by index: %r\n", Status);
 		goto cleanup;
 	}
 
