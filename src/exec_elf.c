@@ -40,6 +40,7 @@
 #include <efilib.h>
 
 #include <elf.h>
+#include <limits.h>
 
 #include "boot.h"
 #include "fatelf.h"
@@ -67,7 +68,11 @@ IsElf64(UINT8 *Header)
     CHAR16 *TargArch;
     Elf64_Ehdr *ElfHdr = (Elf64_Ehdr *)Header;
 
-    if (ElfHdr->e_ident[EI_MAG0] != ELFMAG0 && ElfHdr->e_ident[EI_MAG1] != ELFMAG1 && ElfHdr->e_ident[EI_MAG2] != ELFMAG2 && ElfHdr->e_ident[EI_MAG3] != ELFMAG3)
+    /* Magic: any mismatch -> not ELF */
+    if (ElfHdr->e_ident[EI_MAG0] != ELFMAG0 ||
+        ElfHdr->e_ident[EI_MAG1] != ELFMAG1 ||
+        ElfHdr->e_ident[EI_MAG2] != ELFMAG2 ||
+        ElfHdr->e_ident[EI_MAG3] != ELFMAG3)
         return FALSE;
 
     if (ElfHdr->e_ident[EI_CLASS] != ELFCLASS64) {
@@ -80,10 +85,7 @@ IsElf64(UINT8 *Header)
         return FALSE;
     }
 
-    if (ElfHdr->e_ident[EI_VERSION] != 1)
-        return FALSE;
-
-    if (ElfHdr->e_ident[EI_ABIVERSION] != 1)
+    if (ElfHdr->e_ident[EI_VERSION] != EV_CURRENT)
         return FALSE;
 
     if (ElfHdr->e_machine != ArchNum) {
@@ -149,13 +151,19 @@ LoadElfBinary(EFI_FILE_HANDLE File)
 
     Size = sizeof(Ehdr);
     Status = uefi_call_wrapper(File->Read, 3, File, &Size, &Ehdr);
-    if (EFI_ERROR(Status)) {
-        PrintToScreen(L"Failed to read ELF file: %r\n");
+    if (EFI_ERROR(Status) || Size != sizeof(Ehdr)) {
+        PrintToScreen(L"Failed to read full ELF header: %r\n", Status);
         return EFI_LOAD_ERROR;
     }
 
     if (Ehdr.e_phnum == 0 || Ehdr.e_phentsize != sizeof(Elf64_Phdr))
         return EFI_UNSUPPORTED;
+
+    /* Check overflow: e_phnum * sizeof(Elf64_Phdr) */
+    if (Ehdr.e_phnum > (UINT_MAX / sizeof(Elf64_Phdr))) {
+        PrintToScreen(L"Too many program headers\n");
+        return EFI_UNSUPPORTED;
+    }
 
     Size = Ehdr.e_phnum * sizeof(Elf64_Phdr);
     Status = uefi_call_wrapper(gBS->AllocatePool, 3, EfiLoaderData, Size, (VOID **)&Phdrs);
@@ -165,52 +173,72 @@ LoadElfBinary(EFI_FILE_HANDLE File)
     }
 
     Status = uefi_call_wrapper(File->SetPosition, 2, File, Ehdr.e_phoff);
-    if (EFI_ERROR(Status))
-        return EFI_LOAD_ERROR;
+    if (EFI_ERROR(Status)) {
+        PrintToScreen(L"Failed to seek to program headers: %r\n", Status);
+        goto fail;
+    }
 
     Status = uefi_call_wrapper(File->Read, 3, File, &Size, Phdrs);
-    if (EFI_ERROR(Status))
-        return EFI_LOAD_ERROR;
+    if (EFI_ERROR(Status) || Size != Ehdr.e_phnum * sizeof(Elf64_Phdr)) {
+        PrintToScreen(L"Failed to read program headers: %r\n", Status);
+        Status = EFI_LOAD_ERROR;
+        goto fail;
+    }
 
     for (i = 0; i < Ehdr.e_phnum; i++) {
         Elf64_Phdr *Ph = &Phdrs[i];
-        EFI_PHYSICAL_ADDRESS Addr;
+        EFI_PHYSICAL_ADDRESS AllocAddr = 0;
         UINTN Pages, ReadSize;
+        UINTN seg_offset_in_page;
+        VOID *Target;
 
-        switch (Ph->p_type) {
-            case PT_LOAD:
-                break;
-            case PT_INTERP:
-            case PT_SHLIB:
-            case PT_PHDR:
-            case PT_NULL:
-            case PT_DYNAMIC:
-            case PT_NOTE:
-            default:
-                continue;
+        if (Ph->p_type != PT_LOAD)
+            continue;
+
+        if (Ph->p_memsz < Ph->p_filesz) {
+            PrintToScreen(L"Invalid segment sizes (memsz < filesz)\n");
+            Status = EFI_LOAD_ERROR;
+            goto fail;
         }
 
-        Pages = EFI_SIZE_TO_PAGES(Ph->p_memsz);
-        Addr = Ph->p_paddr ? Ph->p_paddr : Ph->p_vaddr;
-
-        Status = uefi_call_wrapper(gBS->AllocatePages, 4, AllocateAddress, EfiLoaderData, Pages, &Addr);
-        if (EFI_ERROR(Status))
+        /* Ensure we read from the right place in the file */
+        Status = uefi_call_wrapper(File->SetPosition, 2, File, Ph->p_offset);
+        if (EFI_ERROR(Status)) {
+            PrintToScreen(L"Failed to seek to segment @%llu: %r\n", Ph->p_offset, Status);
             goto fail;
+        }
 
-        ReadSize = Ph->p_filesz;
-        Status = uefi_call_wrapper(File->Read, 3, File, &ReadSize, (VOID *)(UINTN)Addr);
-        if (EFI_ERROR(Status))
+        /* Allocate pages to hold the segment; align and include offset within page */
+        seg_offset_in_page = (UINTN)(Ph->p_vaddr & (EFI_PAGE_SIZE - 1));
+        Pages = EFI_SIZE_TO_PAGES((UINTN)Ph->p_memsz + seg_offset_in_page);
+        AllocAddr = 0;
+        Status = uefi_call_wrapper(gBS->AllocatePages, 4, AllocateAnyPages, EfiLoaderData, Pages, &AllocAddr);
+        if (EFI_ERROR(Status)) {
+            PrintToScreen(L"Failed to allocate pages for segment: %r\n", Status);
             goto fail;
+        }
+        Target = (VOID *)(UINTN)(AllocAddr + seg_offset_in_page);
 
-        // Clear BSS.
+        /* Read file contents into memory */
+        ReadSize = (UINTN)Ph->p_filesz;
+        Status = uefi_call_wrapper(File->Read, 3, File, &ReadSize, Target);
+        if (EFI_ERROR(Status) || ReadSize != (UINTN)Ph->p_filesz) {
+            PrintToScreen(L"Failed to read segment data: %r\n", Status);
+            Status = EFI_LOAD_ERROR;
+            goto fail;
+        }
+
+        /* Zero BSS (memsz - filesz) */
         if (Ph->p_memsz > Ph->p_filesz)
-            SetMem((VOID *)(UINTN)(Addr + Ph->p_filesz), Ph->p_memsz - Ph->p_filesz, 0);
+            SetMem((UINT8 *)Target + ReadSize, (UINTN)(Ph->p_memsz - Ph->p_filesz), 0);
     }
 
-    void (*Entry)(void);
-    Entry = (void (*)(void))(UINTN)Ehdr.e_entry;
+    /* Free program headers now we are done */
+    uefi_call_wrapper(gBS->FreePool, 1, Phdrs);
+    Phdrs = NULL;
 
-    // We shall not return.
+    /* Jump to entry (caller should have handled ExitBootServices if needed) */
+    void (*Entry)(void) = (void (*)(void))(UINTN)Ehdr.e_entry;
     Entry();
 
     return EFI_SUCCESS;
@@ -218,6 +246,15 @@ LoadElfBinary(EFI_FILE_HANDLE File)
 fail:
     if (Phdrs)
         uefi_call_wrapper(gBS->FreePool, 1, Phdrs);
-
     return EFI_LOAD_ERROR;
 }
+
+#if 0
+EFI_STATUS
+CheckSumElf(const UINT32 *Data, UINTN Size)
+{
+	EFI_STATUS Status;
+
+	return EFI_SUCCESS;
+}
+#endif

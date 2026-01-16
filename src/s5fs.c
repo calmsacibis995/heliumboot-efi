@@ -50,235 +50,6 @@ enum vtype iftovt_tab[] = {
 #define S_IFMT      0xF000
 #define IFTOVT(M)   (iftovt_tab[((M) & S_IFMT) >> 12])
 
-static UINT32
-s5_addr3(const UINT8 *p)
-{
-    return ((UINT32)p[0]) | ((UINT32)p[1] << 8) | ((UINT32)p[2] << 16);
-}
-
-static EFI_STATUS
-s5_read_block(struct s5_mount *mp, UINT32 blk, VOID *buf)
-{
-    UINTN lba = mp->slice_start_lba + (blk * (mp->bsize / SECSIZE));
-    ASSERT((mp->bsize % SECSIZE) == 0);
-
-#if defined(DEBUG_BLD)
-    PrintToScreen(L"LBA=%lu size=%u\n", lba, mp->bsize);
-#endif
-
-    return uefi_call_wrapper(mp->bio->ReadBlocks, 5, mp->bio, mp->bio->Media->MediaId, lba, mp->bsize, buf);
-}
-
-static EFI_STATUS
-s5_bmap(struct s5_mount *mp, struct s5_inode *ip, UINT32 lbn, UINT32 *phys)
-{
-    UINT8 buf[FsMAXBSIZE];
-    EFI_STATUS Status;
-
-    if (lbn < 10) {
-        *phys = ip->i_addr[lbn];
-        return (*phys != 0) ? EFI_SUCCESS : EFI_NOT_FOUND;
-    }
-
-    lbn -= 10;
-
-    /* single indirect */
-    if (lbn < mp->nindir) {
-        if (ip->i_addr[10] == 0)
-            return EFI_NOT_FOUND;
-
-        Status = s5_read_block(mp, ip->i_addr[10], buf);
-        if (EFI_ERROR(Status))
-            return Status;
-
-        *phys = s5_addr3(&buf[lbn * 3]);
-        return (*phys != 0) ? EFI_SUCCESS : EFI_NOT_FOUND;
-    }
-
-    lbn -= mp->nindir;
-
-    /* double indirect */
-    if (ip->i_addr[11] == 0)
-        return EFI_NOT_FOUND;
-
-    Status = s5_read_block(mp, ip->i_addr[11], buf);
-    if (EFI_ERROR(Status))
-        return Status;
-
-    UINT32 i1 = lbn / mp->nindir;
-    UINT32 i2 = lbn % mp->nindir;
-
-    UINT32 ind1 = s5_addr3(&buf[i1 * 3]);
-    if (ind1 == 0)
-        return EFI_NOT_FOUND;
-
-    Status = s5_read_block(mp, ind1, buf);
-    if (EFI_ERROR(Status))
-        return Status;
-
-    *phys = s5_addr3(&buf[i2 * 3]);
-    return (*phys != 0) ? EFI_SUCCESS : EFI_NOT_FOUND;
-}
-
-static EFI_STATUS
-s5_read_inode(struct s5_mount *mp, UINT32 ino, struct s5_inode *ip)
-{
-    EFI_STATUS Status;
-    VOID *buf;
-    UINT32 blk, off;
-    struct s5_dinode *dp;
-
-    if (ino < 1)
-        return EFI_VOLUME_CORRUPTED;
-
-    blk = FsITOD(mp, ino);
-    off = FsITOO(mp, ino);
-
-    buf = AllocateZeroPool(mp->bsize);
-    if (!buf)
-        return EFI_OUT_OF_RESOURCES;
-
-    Status = s5_read_block(mp, blk, buf);
-    if (EFI_ERROR(Status))
-        goto out;
-
-    dp = (struct s5_dinode *)buf + off;
-
-    ip->i_mode  = dp->di_mode;
-    ip->i_nlink = dp->di_nlink;
-    ip->i_uid   = dp->di_uid;
-    ip->i_gid   = dp->di_gid;
-    ip->i_size  = dp->di_size;
-    ip->i_atime = dp->di_atime;
-    ip->i_mtime = dp->di_mtime;
-    ip->i_ctime = dp->di_ctime;
-    ip->i_number = ino;
-
-    for (UINTN i = 0; i < NADDR; i++)
-        ip->i_addr[i] = s5_addr3((const UINT8 *)&dp->di_addr[i * 3]);
-
-#if defined(DEBUG_BLD)
-    PrintToScreen(L"inode %u, i_addr[0]=%u, i_size=%u\n", ino, ip->i_addr[0], ip->i_size);
-#endif
-
-out:
-    FreePool(buf);
-    return Status;
-}
-
-static EFI_STATUS
-s5_iget(struct s5_mount *mp, UINT32 ino, struct vnode **vpp)
-{
-    EFI_STATUS Status;
-    struct s5_inode *ip;
-    struct vnode *vp;
-
-    ip = AllocateZeroPool(sizeof(*ip));
-    if (!ip)
-        return EFI_OUT_OF_RESOURCES;
-
-    Status = s5_read_inode(mp, ino, ip);
-    if (EFI_ERROR(Status)) {
-        FreePool(ip);
-        return Status;
-    }
-
-    vp = AllocateZeroPool(sizeof(*vp));
-    if (!vp) {
-        FreePool(ip);
-        return EFI_OUT_OF_RESOURCES;
-    }
-
-    vp->fs_private = ip;
-    vp->type = IFTOVT(ip->i_mode);
-
-    *vpp = vp;
-    return EFI_SUCCESS;
-}
-
-static BOOLEAN
-s5_name_match(const INT8 ondisk[DIRSIZ], const CHAR16 *lookup)
-{
-    UINTN i;
-
-    for (i = 0; i < DIRSIZ; i++) {
-        if (lookup[i] == L'\0')
-            return ondisk[i] == '\0';
-
-        if ((UINT8)lookup[i] != (UINT8)ondisk[i])
-            return FALSE;
-    }
-
-    return lookup[i] == L'\0';
-}
-
-static BOOLEAN
-is_dot_or_dotdot(const struct s5_direct *de)
-{
-    if (de->d_name[0] == '.' && de->d_name[1] == '\0')
-        return TRUE;
-
-    if (de->d_name[0] == '.' && de->d_name[1] == '.' && de->d_name[2] == '\0')
-        return TRUE;
-
-    return FALSE;
-}
-
-/*
- * Convers the filenames and directory names from ASCII to UTF-16.
- */
-static void
-s5_name_to_ucs2(const INT8 ondisk[DIRSIZ], CHAR16 out[DIRSIZ + 1])
-{
-    INTN i;
-
-    for (i = 0; i < DIRSIZ; i++)
-        out[i] = (CHAR16)(UINT8)ondisk[i];
-
-    for (i = DIRSIZ - 1; i >= 0; i--) {
-        if (out[i] != L'\0' && out[i] != L' ')
-            break;
-        out[i] = L'\0';
-    }
-
-    out[DIRSIZ] = L'\0';
-}
-
-EFI_STATUS
-ReadS5(struct s5_mount *mp, struct s5_inode *ip, UINT64 off, VOID *dst, UINTN len)
-{
-    UINT8 buf[FsMAXBSIZE];
-    UINTN done = 0;
-
-    while (done < len && off < ip->i_size) {
-        UINT32 lbn = off / mp->bsize;
-        UINT32 boff = off % mp->bsize;
-        UINT32 blk;
-        EFI_STATUS Status;
-
-        Status = s5_bmap(mp, ip, lbn, &blk);
-        if (EFI_ERROR(Status))
-            return Status;
-
-        Status = s5_read_block(mp, blk, buf);
-        if (EFI_ERROR(Status))
-            return Status;
-
-        UINTN n = mp->bsize - boff;
-        if (n > len - done)
-            n = len - done;
-        if (n > ip->i_size - off)
-            n = ip->i_size - off;
-
-        CopyMem((UINT8 *)dst + done, buf + boff, n);
-
-        off += n;
-        done += n;
-    }
-
-    return EFI_SUCCESS;
-}
-
 EFI_STATUS
 DetectS5(EFI_BLOCK_IO_PROTOCOL *BlockIo, UINT32 SliceStartLBA, void *sb_void)
 {
@@ -322,186 +93,345 @@ DetectS5(EFI_BLOCK_IO_PROTOCOL *BlockIo, UINT32 SliceStartLBA, void *sb_void)
     return EFI_SUCCESS;
 }
 
-EFI_STATUS
-MountS5(EFI_BLOCK_IO_PROTOCOL *BlockIo, UINT32 SliceStartLBA, void *sb_buffer, void **mount_out)
+/*
+ * Helpers for mount/list implementation
+ */
+static EFI_STATUS
+s5_read_block(struct s5_mount *mnt, UINT32 block, VOID *buf)
 {
     EFI_STATUS Status;
-    struct s5_superblock *sb;
-    struct s5_mount *mp;
-    UINTN i;
+    EFI_BLOCK_IO_PROTOCOL *bio = mnt->bio;
+    UINT64 sectors_per_block = mnt->bsize / bio->Media->BlockSize;
+    UINT64 start_lba = (UINT64)mnt->slice_start_lba + (UINT64)block * sectors_per_block;
 
-    if (!BlockIo || !sb_buffer || !mount_out)
-        return EFI_INVALID_PARAMETER;
+    Status = uefi_call_wrapper(bio->ReadBlocks, 5, bio, bio->Media->MediaId, start_lba, mnt->bsize, buf);
+    return Status;
+}
 
-    sb = (struct s5_superblock *)sb_buffer;
-    if (sb->s_magic != FsMAGIC)
-        return EFI_UNSUPPORTED;
-
-    mp = AllocateZeroPool(sizeof(*mp));
-    if (!mp)
+static EFI_STATUS
+s5_read_inode(struct s5_mount *mnt, UINT32 ino, struct s5_dinode *din)
+{
+    EFI_STATUS Status;
+    UINT32 blk = FsITOD(mnt, ino);
+    VOID *buf = AllocatePool(mnt->bsize);
+    if (!buf)
         return EFI_OUT_OF_RESOURCES;
 
-    MemMove(&mp->sb, sb, sizeof(*sb));
-
-    // Set the location of the filesystem on the disk.
-    mp->bio = BlockIo;
-    mp->slice_start_lba = SliceStartLBA;
-
-    // Set the block size.
-    switch (mp->sb.s_type) {
-        case Fs1b:
-            mp->bsize = 512;
-            break;
-        case Fs2b:
-            mp->bsize = 1024;
-            break;
-        case Fs4b:
-            mp->bsize = 2048;
-            break;
-        default:
-            FreePool(mp);
-            return EFI_UNSUPPORTED;
-    }
-
-    mp->bmask = mp->bsize - 1;
-    mp->inopb = mp->bsize / sizeof(struct s5_dinode);
-    mp->nindir = mp->bsize / sizeof(INT32);
-    mp->nmask = mp->nindir - 1;
-
-    for (i = mp->bsize, mp->bshift = 0; i > 1; i >>= 1)
-        mp->bshift++;
-
-    for (i = mp->nindir, mp->nshift = 0; i > 1; i >>= 1)
-        mp->nshift++;
-
-    for (i = mp->inopb, mp->inoshift = 0; i > 1; i >>= 1)
-		mp->inoshift++;
-
-    Status = s5_iget(mp, S5ROOTINO, &mp->root_vnode);
+    Status = s5_read_block(mnt, blk, buf);
     if (EFI_ERROR(Status)) {
-        FreePool(mp);
+        FreePool(buf);
         return Status;
     }
 
-    *mount_out = mp;
+    /* index within block */
+    UINT32 idx = FsITOO(mnt, ino);
+    UINT32 offset = idx * sizeof(struct s5_dinode);
+    if (offset + sizeof(struct s5_dinode) > mnt->bsize) {
+        FreePool(buf);
+        return EFI_DEVICE_ERROR;
+    }
 
+    MemMove(din, (UINT8 *)buf + offset, sizeof(struct s5_dinode));
+    FreePool(buf);
     return EFI_SUCCESS;
 }
 
+/* Compare a UTF-16 component with the on-disk DIR name (INT8[DIRSIZ]) */
+static BOOLEAN
+s5_name_cmp(const CHAR16 *comp, const INT8 *dname)
+{
+    UINTN i = 0;
+    /* skip leading slashes in comp */
+    while (*comp == L'/' || *comp == L'\\')
+        comp++;
+
+    /* component is empty -> no match */
+    if (*comp == L'\0')
+        return FALSE;
+
+    for (i = 0; i < DIRSIZ; i++) {
+        CHAR8 c = dname[i];
+        if (c == '\0' || c == ' ')
+            break;
+        if ((CHAR16)c != comp[i])
+            return FALSE;
+    }
+
+    /* ensure component length matches dname length */
+    /* check remaining chars in comp */
+    if (comp[i] != L'\0')
+        return FALSE;
+
+    return TRUE;
+}
+
+/*
+ * MountS5: build mount context from block device and superblock buffer.
+ */
+EFI_STATUS
+MountS5(EFI_BLOCK_IO_PROTOCOL *BlockIo, UINT32 SliceStartLBA, void *sb_buffer, void **mount_out)
+{
+    struct s5_mount *mnt;
+    struct s5_superblock *sb = (struct s5_superblock *)sb_buffer;
+
+    if (!sb || !mount_out)
+        return EFI_INVALID_PARAMETER;
+
+    mnt = AllocateZeroPool(sizeof(*mnt));
+    if (!mnt)
+        return EFI_OUT_OF_RESOURCES;
+
+    /* copy superblock */
+    MemMove(&mnt->sb, sb, sizeof(mnt->sb));
+
+    /* block size and parameters */
+    switch (mnt->sb.s_type) {
+        case Fs1b:
+            mnt->bshift = Fs1b;
+            break;
+        case Fs2b:
+            mnt->bshift = Fs2b;
+            break;
+        case Fs4b:
+            mnt->bshift = Fs4b;
+            break;
+        default:
+            FreePool(mnt);
+            return EFI_UNSUPPORTED;
+    }
+    mnt->bsize = FsBSIZE(mnt->bshift);
+    mnt->inopb = mnt->bsize / sizeof(struct s5_dinode);
+
+    /* compute inoshift (log2(inopb)) */
+    mnt->inoshift = 0;
+    while ((1U << mnt->inoshift) < mnt->inopb)
+        mnt->inoshift++;
+
+    mnt->nindir = mnt->bsize / sizeof(INT32);
+    mnt->bmask = mnt->bsize - 1;
+    mnt->bio = BlockIo;
+    mnt->slice_start_lba = SliceStartLBA;
+    mnt->root_vnode = NULL; /* not used by current implementation */
+
+    *mount_out = mnt;
+    return EFI_SUCCESS;
+}
+
+/*
+ * ReadS5Dir: list directory contents for the provided path.
+ * Path is a UTF-16 string ('\' or '/' separated). If path is root ("\"), list root.
+ */
 EFI_STATUS
 ReadS5Dir(void *mount_ctx, const CHAR16 *path)
 {
+    struct s5_mount *mnt = (struct s5_mount *)mount_ctx;
     EFI_STATUS Status;
-    struct s5_mount *mp;
-    struct s5_inode *dip;
-    struct s5_direct de;
-    struct vnode *dir_vp;
-    CHAR16 *next, *token;
-    CHAR16 PathBuf[256];
-    CHAR16 Name16[DIRSIZ + 1];
+    UINT32 cur_ino = S5ROOTINO;
+    CHAR16 compbuf[DIRSIZ + 1];
+    const CHAR16 *p = path;
+    BOOLEAN last_component = FALSE;
 
-    if (!mount_ctx || !path)
+    if (!mnt || !path)
         return EFI_INVALID_PARAMETER;
 
-    mp = (struct s5_mount *)mount_ctx;
-    dir_vp = mp->root_vnode;
+    /* start from root if path begins with slash */
+    while (*p == L'/' || *p == L'\\')
+        p++;
 
-    if (dir_vp->type != VDIR) {
-        PrintToScreen(L"s5: Root vnode is not a directory\n");
-        return EFI_UNSUPPORTED;
-    }
+    /* If path is empty -> list root */
+    if (*p == L'\0') {
+        /* cur_ino already root */
+    } else {
+        /* walk components */
+        while (*p != L'\0') {
+            UINTN ci = 0;
+            while (*p != L'/' && *p != L'\\' && *p != L'\0' && ci < DIRSIZ) {
+                compbuf[ci++] = *p++;
+            }
+            compbuf[ci] = L'\0';
+            while (*p == L'/' || *p == L'\\')
+                p++;
+            last_component = (*p == L'\0');
 
-    StrnCpy(PathBuf, path, ARRAY_SIZE(PathBuf));
-    PathBuf[ARRAY_SIZE(PathBuf) - 1] = L'\0';
+            /* search compbuf in directory cur_ino */
+            UINT32 found_ino = 0;
+            /* iterate directory blocks */
+            UINTN i;
+            for (i = 0; i < NADDR; i++) {
+                INT32 b = 0;
+                /* read block number from inode - need inode to get addr list */
+                struct s5_dinode din;
+                Status = s5_read_inode(mnt, cur_ino, &din);
+                if (EFI_ERROR(Status))
+                    return Status;
 
-    token = PathBuf;
-    if (*token == L'\\')
-        token++;
+                b = din.di_addr[i];
+                if (b == 0)
+                    continue;
 
-    while (*token != L'\0') {
-        BOOLEAN found = FALSE;
-        UINT64 off = 0;
+                VOID *dbuf = AllocatePool(mnt->bsize);
+                if (!dbuf)
+                    return EFI_OUT_OF_RESOURCES;
 
-        next = StrStr(token, L"\\");
-        if (next)
-            *next = L'\0';
+                Status = s5_read_block(mnt, b, dbuf);
+                if (EFI_ERROR(Status)) {
+                    FreePool(dbuf);
+                    return Status;
+                }
 
-        dip = dir_vp->fs_private;
-        if (!dip)
-            return EFI_NOT_FOUND;
+                UINTN entries = mnt->bsize / SDSIZ;
+                UINTN e;
+                for (e = 0; e < entries; e++) {
+                    struct s5_direct *de = (struct s5_direct *)((UINT8 *)dbuf + e * SDSIZ);
+                    if (de->d_ino == 0)
+                        continue;
+                    /* compare names: convert compbuf to ASCII compare */
+                    /* build a temporary CHAR8 name from compbuf */
+                    CHAR8 tmp[DIRSIZ + 1];
+                    UINTN k;
+                    for (k = 0; k < DIRSIZ; k++) {
+                        if (k >= StrLen(compbuf))
+                            tmp[k] = '\0';
+                        else
+                            tmp[k] = (CHAR8)compbuf[k];
+                    }
+                    tmp[DIRSIZ] = '\0';
 
-        while (off < dip->i_size) {
-            Status = ReadS5(mp, dip, off, &de, sizeof(de));
+                    /* compare with de->d_name (note: de->d_name not nul-terminated) */
+                    BOOLEAN match = TRUE;
+                    for (k = 0; k < DIRSIZ; k++) {
+                        CHAR8 dc = de->d_name[k];
+                        if (dc == '\0' || dc == ' ') {
+                            /* end of name */
+                            if (tmp[k] != '\0')
+                                match = FALSE;
+                            break;
+                        }
+                        if (tmp[k] != dc) {
+                            match = FALSE;
+                            break;
+                        }
+                    }
+
+                    if (match) {
+                        found_ino = de->d_ino;
+                        break;
+                    }
+                }
+
+                FreePool(dbuf);
+                if (found_ino != 0)
+                    break;
+            } /* for each block */
+
+            if (found_ino == 0) {
+                PrintToScreen(L"No such file or directory: %s\n", compbuf);
+                return EFI_NOT_FOUND;
+            }
+
+            if (last_component) {
+                cur_ino = found_ino;
+                break;
+            }
+
+            /* ensure it's a directory */
+            struct s5_dinode nd;
+            Status = s5_read_inode(mnt, found_ino, &nd);
             if (EFI_ERROR(Status))
                 return Status;
+            if (IFTOVT(nd.di_mode) != VDIR) {
+                PrintToScreen(L"%s is not a directory\n", compbuf);
+                return EFI_NOT_FOUND;
+            }
 
-            off += sizeof(de);
-
-            if (de.d_ino == 0)
-                continue;
-
-            if (!s5_name_match(de.d_name, token))
-                continue;
-
-            Status = s5_iget(mp, de.d_ino, &dir_vp);
-            if (EFI_ERROR(Status))
-                return Status;
-
-            found = TRUE;
-            break;
-        }
-
-        if (!found)
-            return EFI_NOT_FOUND;
-
-        if (next)
-            token = next + 1;
-        else
-            break;
+            cur_ino = found_ino;
+        } /* while components */
     }
 
-    PrintToScreen(L"Listing directory: %s\n", path);
-
-    dip = dir_vp->fs_private;
-    if (!dip)
-        return EFI_NOT_FOUND;
-
-    UINT64 off = 0;
-    while (off < dip->i_size) {
-        Status = ReadS5(mp, dip, off, &de, sizeof(de));
+    /* Now list directory cur_ino */
+    {
+        struct s5_dinode din;
+        Status = s5_read_inode(mnt, cur_ino, &din);
         if (EFI_ERROR(Status))
             return Status;
+        if (IFTOVT(din.di_mode) != VDIR) {
+            PrintToScreen(L"Not a directory\n");
+            return EFI_UNSUPPORTED;
+        }
 
-        off += sizeof(de);
+        PrintToScreen(L"Listing s5 directory: %s\n", path);
 
-        if (de.d_ino == 0)
-            continue;
+        UINTN i;
+        for (i = 0; i < NADDR; i++) {
+            INT32 b = din.di_addr[i];
+            if (b == 0)
+                continue;
 
-        if (is_dot_or_dotdot(&de))
-            continue;
+            VOID *dbuf = AllocatePool(mnt->bsize);
+            if (!dbuf)
+                return EFI_OUT_OF_RESOURCES;
 
-        s5_name_to_ucs2(de.d_name, Name16);
-        PrintToScreen(L"  %s\n", Name16);
+            Status = s5_read_block(mnt, b, dbuf);
+            if (EFI_ERROR(Status)) {
+                FreePool(dbuf);
+                return Status;
+            }
+
+            UINTN entries = mnt->bsize / SDSIZ;
+            UINTN e;
+            for (e = 0; e < entries; e++) {
+                struct s5_direct *de = (struct s5_direct *)((UINT8 *)dbuf + e * SDSIZ);
+                if (de->d_ino == 0)
+                    continue;
+                CHAR16 namew[DIRSIZ + 1];
+                UINTN k;
+                for (k = 0; k < DIRSIZ; k++) {
+                    CHAR8 c = de->d_name[k];
+                    if (c == '\0' || c == ' ')
+                        break;
+                    namew[k] = (CHAR16)c;
+                }
+                namew[k] = L'\0';
+
+                /* read inode to get type/size */
+                struct s5_dinode fi;
+                if (s5_read_inode(mnt, de->d_ino, &fi) == EFI_SUCCESS) {
+                    vtype_t vt = IFTOVT(fi.di_mode);
+                    switch (vt) {
+                        case VDIR:
+                            PrintToScreen(L"  <DIR>  %s\n", namew);
+                            break;
+                        case VREG:
+                            PrintToScreen(L" <FILE>  %s  %u bytes\n", namew, fi.di_size);
+                            break;
+                        default:
+                            PrintToScreen(L"  <OTHR> %s\n", namew);
+                            break;
+                    }
+                } else {
+                    PrintToScreen(L"  <???>  %s\n", namew);
+                }
+            }
+            FreePool(dbuf);
+        }
     }
 
     return EFI_SUCCESS;
 }
 
+/*
+ * UmountS5: release mount resources.
+ */
 EFI_STATUS
 UmountS5(void *mount)
 {
-    struct s5_mount *mp = mount;
-
-    if (!mp)
+    struct s5_mount *mnt = (struct s5_mount *)mount;
+    if (!mnt)
         return EFI_INVALID_PARAMETER;
 
-    if (mp->root_vnode) {
-        if (mp->root_vnode->fs_private)
-            FreePool(mp->root_vnode->fs_private);
-        FreePool(mp->root_vnode);
-    }
+    if (mnt->root_vnode)
+        mnt->root_vnode = NULL;
 
-    FreePool(mp);
-
+    FreePool(mnt);
     return EFI_SUCCESS;
 }

@@ -36,6 +36,7 @@
 
 #include "boot.h"
 #include "cmd.h"
+#include "config.h"
 #include "disk.h"
 #include "fs.h"
 #include "vtoc.h"
@@ -110,7 +111,7 @@ hinv(CHAR16 *args)
 #else
 	PrintToScreen(L"\tPlatform:               unknown\n");
 #endif
-#if defined(X86_64_BLD)
+#if defined(IA32_BLD) || defined(X86_64_BLD)
 	CHAR8 CpuNameA[49];
 	CHAR16 CpuName[49];
 	UINT32 *p = (UINT32 *)CpuNameA;
@@ -500,6 +501,13 @@ lsblk(CHAR16 *args)
 }
 
 void
+pconf(CHAR16 *args)
+{
+	PrintToScreen(L"Not implemented yet!\n");
+	return;
+}
+
+void
 reboot(CHAR16 *args)
 {
 	EFI_STATUS Status;
@@ -507,6 +515,58 @@ reboot(CHAR16 *args)
 	Status = uefi_call_wrapper(RT->ResetSystem, 4, EfiResetCold, EFI_SUCCESS, 0, NULL);
 	if (EFI_ERROR(Status))
 		PrintToScreen(L"Reset failed: %r\n", Status);
+}
+
+void
+sconf(CHAR16 *args)
+{
+    EFI_STATUS Status;
+    UINTN field_num, value_num;
+    UINT8 ConfigField, ConfigValue;
+    CHAR16 *field_str, *value_str, *p;
+
+    if (!args || *args == L'\0') {
+        PrintToScreen(L"Invalid usage.\n");
+        return;
+    }
+
+    /* Split args into two tokens: FIELD and VALUE */
+    field_str = args;
+    p = args;
+    while (*p != L'\0' && *p != L' ')
+        p++;
+    if (*p == L' ') {
+        *p++ = L'\0';
+        while (*p == L' ')
+            p++;
+    }
+    value_str = p;
+
+    if (!value_str || *value_str == L'\0') {
+        PrintToScreen(L"Invalid usage.\n");
+        return;
+    }
+
+    /* Convert decimal ASCII tokens to numeric values */
+    field_num = StrDecimalToUintn(field_str);
+    value_num = StrDecimalToUintn(value_str);
+
+	if (field_num >= CONFIG_CHKSUM1_ENTRY) {
+		PrintToScreen(L"Invalid field. Must be 0 to 253.\n");
+        return;
+	}
+
+    if (value_num > 0xFF) {
+        PrintToScreen(L"Invalid value. Must be 0 to 255.\n");
+        return;
+    }
+
+    ConfigField = (UINT8)field_num;
+    ConfigValue = (UINT8)value_num;
+
+    Status = WriteConfig(ConfigField, ConfigValue);
+    if (EFI_ERROR(Status))
+        PrintToScreen(L"Failed to write configuration: %r\n", Status);
 }
 
 void

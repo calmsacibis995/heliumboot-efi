@@ -40,23 +40,18 @@
 
 // Global functions and variables, sorted by filename.
 
-// vers.c
-extern const CHAR16 *getdate(void);
-extern const CHAR16 *getvernum(void);
-extern const CHAR16 *getversion(void);
-extern const CHAR16 *getrevision(void);
-extern const CHAR16 *getblddate(void);
-extern const CHAR16 *getrevdate(void);
-extern const CHAR16 *getcommitno(void);
-extern const CHAR16 *getbuildno(void);
-
 // boot.c
 extern BOOLEAN exit_flag;
 extern EFI_HANDLE gImageHandle;
 
+// config.c
+extern BOOLEAN NoMenuLoad;
+extern EFI_STATUS ReadConfig(const UINT16 *Path);
+extern EFI_STATUS WriteConfig(UINT8 Field, UINT8 Value);
+
 // exec_efi.c
 extern BOOLEAN IsEfiBinary(const void *Buffer);
-extern EFI_STATUS LoadEfiBinary(CHAR16 *Path, EFI_HANDLE DeviceHandle);
+extern EFI_STATUS LoadEfiBinary(CHAR16 *Path, EFI_LOADED_IMAGE *LoadedImage, EFI_HANDLE DeviceHandle, CHAR16 *ProgArgs);
 
 // exec_elf.c
 extern BOOLEAN IsElf64(UINT8 *Header);
@@ -92,5 +87,15 @@ extern void UpdateProgressBar(INTN Id, UINTN NewProgress);
 extern void GetScreenSize(UINTN *ScreenWidth, UINTN *ScreenHeight);
 extern BOOLEAN VideoInitFlag;
 extern BOOLEAN FramebufferAllowed;
+
+// vers.c
+extern const CHAR16 *getdate(void);
+extern const CHAR16 *getvernum(void);
+extern const CHAR16 *getversion(void);
+extern const CHAR16 *getrevision(void);
+extern const CHAR16 *getblddate(void);
+extern const CHAR16 *getrevdate(void);
+extern const CHAR16 *getcommitno(void);
+extern const CHAR16 *getbuildno(void);
 
 #endif /* _BOOT_H_ */

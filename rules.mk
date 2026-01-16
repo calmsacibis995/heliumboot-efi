@@ -103,19 +103,19 @@ aarch64/boot_dev.so: $(AARCH64_DEV_OBJS)
 
 x86_64/debug_%.o: src/%.c
 	$(HIDE)$(ECHO) "  CC       $(notdir $@)"
-	$(X86_64_CC) $(X86_64_DEBUG_CFLAGS) -c $< -o $@
+	$(HIDE)$(X86_64_CC) $(X86_64_DEBUG_CFLAGS) -c $< -o $@
 
 aarch64/debug_%.o: src/%.c
 	$(HIDE)$(ECHO) "  CC       $(notdir $@)"
-	$(AARCH64_CC) $(AARCH64_DEBUG_CFLAGS) -c $< -o $@
+	$(HIDE)$(AARCH64_CC) $(AARCH64_DEBUG_CFLAGS) -c $< -o $@
 
 x86_64/dev_%.o: src/%.c
 	$(HIDE)$(ECHO) "  CC       $(notdir $@)"
-	$(X86_64_CC) $(X86_64_DEV_CFLAGS) -c $< -o $@
+	$(HIDE)$(X86_64_CC) $(X86_64_DEV_CFLAGS) -c $< -o $@
 
 aarch64/dev_%.o: src/%.c
 	$(HIDE)$(ECHO) "  CC       $(notdir $@)"
-	$(AARCH64_CC) $(AARCH64_DEV_CFLAGS) -c $< -o $@
+	$(HIDE)$(AARCH64_CC) $(AARCH64_DEV_CFLAGS) -c $< -o $@
 
 x86_64/boot_debug.efi: x86_64/boot_debug.so
 	$(HIDE)$(ECHO) "  OBJCOPY  $(notdir $@)"
@@ -130,7 +130,8 @@ x86_64/boot_dev.efi: x86_64/boot_dev.so
 	$(HIDE)$(X86_64_OBJCOPY) $(EFI_OBJCOPY_FLAGS) --target efi-app-x86_64 $< $@
 
 aarch64/boot_dev.efi: aarch64/boot_dev.so
-	$(AARCH64_OBJCOPY) $(EFI_OBJCOPY_FLAGS) --target efi-app-aarch64 $< $@
+	$(HIDE)$(ECHO) "  OBJCOPY  $(notdir $@)"
+	$(HIDE)$(AARCH64_OBJCOPY) $(EFI_OBJCOPY_FLAGS) --target efi-app-aarch64 $< $@
 
 # Linking macros.
 define link_x86_64

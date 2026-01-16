@@ -98,11 +98,13 @@ IsEfiBinary(const void *Buffer)
 }
 
 EFI_STATUS
-LoadEfiBinary(CHAR16 *Path, EFI_HANDLE DeviceHandle)
+LoadEfiBinary(CHAR16 *Path, EFI_LOADED_IMAGE *LoadedImage, EFI_HANDLE DeviceHandle, CHAR16 *ProgArgs)
 {
 	EFI_STATUS Status;
 	EFI_HANDLE Image;
 	EFI_DEVICE_PATH *FilePath;
+    CHAR16 *ArgsCopy = NULL;
+    UINTN ArgsSize = 0;
 
 	// Get file path.
 	FilePath = FileDevicePath(DeviceHandle, Path);
@@ -122,11 +124,29 @@ LoadEfiBinary(CHAR16 *Path, EFI_HANDLE DeviceHandle)
 		return Status;
 	}
 
+    /* If there are program args, copy them and attach as LoadOptions */
+    if (ProgArgs) {
+        ArgsSize = (StrLen(ProgArgs) + 1) * sizeof(CHAR16);
+        Status = uefi_call_wrapper(BS->AllocatePool, 3, EfiLoaderData, ArgsSize, (VOID **)&ArgsCopy);
+        if (EFI_ERROR(Status))
+            goto cleanup;
+        CopyMem(ArgsCopy, ProgArgs, ArgsSize);
+        Status = uefi_call_wrapper(BS->HandleProtocol, 3, gImageHandle, &gEfiLoadedImageProtocolGuid, (VOID **)&Image);
+        if (!EFI_ERROR(Status)) {
+            LoadedImage->LoadOptions = ArgsCopy;
+            LoadedImage->LoadOptionsSize = ArgsSize;
+        }
+    }
+
 	Status = uefi_call_wrapper(gBS->StartImage, 3, Image, NULL, NULL);
 	if (EFI_ERROR(Status)) {
 		PrintToScreen(L"Failed to start image (%r)\n", Status);
 		return Status;
 	}
 
-	return EFI_SUCCESS;
+cleanup:
+    if (EFI_ERROR(Status) && ArgsCopy)
+        uefi_call_wrapper(BS->FreePool, 1, ArgsCopy);
+
+    return Status;
 }

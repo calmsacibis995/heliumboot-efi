@@ -40,6 +40,7 @@
 
 #include <elf.h>
 
+#include "aout.h"
 #include "boot.h"
 #include "disk.h"
 #include "vtoc.h"
@@ -65,7 +66,7 @@ LoadFile(CHAR16 *args)
 	UINTN ReadSize;
 	UINT8 Header[64];
 	CHAR16 *Path;
-	CHAR16 *ProgArgs;
+	CHAR16 *ProgArgs = NULL;
 	UINTN DriveIndex = 0;
 	UINTN SliceIndex = 0;
 
@@ -112,17 +113,31 @@ LoadFile(CHAR16 *args)
 		return EFI_INVALID_PARAMETER;
 	}
 
-	if (*p == L'\0')
+	/* Split path token and optional program arguments */
+	if (*p == L'\0') {
 		Path = L"\\";
-	else if (*p == L'\\')
-		Path = p;
-	else {
-		static CHAR16 PathBuf[256];
+		ProgArgs = NULL;
+	} else {
+		CHAR16 *q = p;
+		/* find end of path token (space/tab separate args) */
+		while (*q != L'\0' && *q != L' ' && *q != L'\t')
+			q++;
+		if (*q != L'\0') {
+			*q++ = L'\0'; /* terminate path */
+			while (*q == L' ' || *q == L'\t')
+				q++;
+			ProgArgs = (*q != L'\0') ? q : NULL;
+		}
 
-		PathBuf[0] = L'\\';
-		StrnCpy(PathBuf + 1, p, ARRAY_SIZE(PathBuf) - 2);
-		PathBuf[ARRAY_SIZE(PathBuf) - 1] = L'\0';
-		Path = PathBuf;
+		if (*p == L'\\')
+			Path = p;
+		else {
+			static CHAR16 PathBuf[256];
+			PathBuf[0] = L'\\';
+			StrnCpy(PathBuf + 1, p, ARRAY_SIZE(PathBuf) - 2);
+			PathBuf[ARRAY_SIZE(PathBuf) - 1] = L'\0';
+			Path = PathBuf;
+		}
 	}
 
 	Status = uefi_call_wrapper(gBS->HandleProtocol, 3, gImageHandle, &gEfiLoadedImageProtocolGuid, (VOID **)&LoadedImage);
@@ -163,19 +178,26 @@ open_volume:
 
 	uefi_call_wrapper(File->SetPosition, 2, File, 0);
 
-	if (IsElf64(Header)) {
+	if (IsAOut(Header)) {
+		Status = LoadAOutBinary(File);
+		if (EFI_ERROR(Status)) {
+			PrintToScreen(L"Failed to load a.out file %s: %r\n", Status);
+			return Status;
+		}
+	} else if (IsElf64(Header)) {
 		Status = LoadElfBinary(File);
 		if (EFI_ERROR(Status)) {
 			PrintToScreen(L"Failed to load ELF file %s: %r\n", Status);
 			return Status;
 		}
 	} else if (IsEfiBinary(Header)) {
-		Status = LoadEfiBinary(Path, LoadedImage->DeviceHandle);
-		if (EFI_ERROR(Status)) {
-			PrintToScreen(L"Failed to load EFI binary %s: %r\n", Status);
+		/* Pass ProgArgs to the EFI loader so it can set LoadOptions */
+		Status = LoadEfiBinary(Path, LoadedImage, LoadedImage->DeviceHandle, ProgArgs);
+        if (EFI_ERROR(Status)) {
+			PrintToScreen(L"Failed to load EFI binary %s: %r\n", Path, Status);
 			return Status;
-		}
-	} else {
+        }
+     } else {
 		PrintToScreen(L"Unknown binary format\n");
 		return EFI_UNSUPPORTED;
 	}

@@ -31,7 +31,28 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
- #ifndef _AOUT_H_
+#ifndef _AOUT_H_
 #define _AOUT_H_
+
+#include <efi.h>
+#include <efilib.h>
+
+struct Exec {
+    INT32 a_magic;      /* magic number */
+    UINT32 a_text;		/* size of text segment */
+    UINT32 a_data;		/* size of initialized data */
+    UINT32 a_bss;		/* size of uninitialized data */
+    UINT32 a_syms;		/* size of symbol table */
+    UINT32 a_entry;     /* entry point */
+    UINT32 a_trsize;	/* size of text relocation */
+    UINT32 a_drsize;	/* size of data relocation */
+};
+
+#define	OMAGIC	0407		/* old impure format */
+#define	NMAGIC	0410		/* read-only text */
+#define	ZMAGIC	0413		/* demand load format */
+
+extern BOOLEAN IsAOut(UINT8 *Header);
+extern EFI_STATUS LoadAOutBinary(EFI_FILE_HANDLE File);
 
 #endif /* _AOUT_H_ */

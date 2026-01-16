@@ -49,8 +49,10 @@ struct boot_command_tab cmd_tab[] = {
 	{ L"hinv", hinv, CMD_NO_ARGS, L"hinv: hinv" },
 	{ L"ls", ls, CMD_REQUIRED_ARGS, L"ls: sd(x,y)[PATH]" },
 	{ L"lsblk", lsblk, CMD_NO_ARGS, L"lsblk: lsblk" },
+	{ L"pconf", pconf, CMD_NO_ARGS, L"pconf: pconf" },
 	{ L"reboot", reboot, CMD_NO_ARGS, L"reboot: reboot" },
 	{ L"revision", print_revision, CMD_NO_ARGS, L"revision: revision" },
+	{ L"sconf", sconf, CMD_REQUIRED_ARGS, L"sconf: FIELD VALUE" },
 	{ L"version", print_version, CMD_NO_ARGS, L"version: version" },
 	{ NULL, NULL, CMD_NO_ARGS, NULL }
 };

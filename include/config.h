@@ -31,42 +31,16 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef _CMD_H_
-#define _CMD_H_
+#ifndef _CONFIG_H_
+#define _CONFIG_H_
 
-#include <efi.h>
-#include <efilib.h>
+#define CONFIG_NOMENU_ENTRY 0	// Don't start the menu flag (1 = TRUE, 0 = FALSE).
+#define CONFIG_VERSION_ENTRY    1	// Version number.
+#define CONFIG_CHKSUM1_ENTRY    254 // Checksum byte 1.
+#define CONFIG_CHKSUM2_ENTRY    255 // Checksum byte 2.
 
-enum arg_type {
-    CMD_NO_ARGS,
-    CMD_OPTIONAL_ARGS,
-    CMD_REQUIRED_ARGS
-};
+#define CONFIG_FILE_VERSION		1
 
-struct boot_command_tab {
-	CHAR16 *cmd_name;		// Command name.
-	void (*cmd_func)(CHAR16 *args);		// Function pointer.
-	enum arg_type cmd_arg_type;		// Command type
-	CHAR16 *cmd_usage;	// Command usage.
-};
+#define CONFIG_FILE	L"config.dat"
 
-extern struct boot_command_tab cmd_tab[];
-
-extern void CommandMonitor(void);
-extern void about(CHAR16 *args);
-extern void boot(CHAR16 *args);
-extern void boot_efi(CHAR16 *args);
-extern void cls(CHAR16 *args);
-extern void echo(CHAR16 *args);
-extern void exit(CHAR16 *args);
-extern void help(CHAR16 *args);
-extern void hinv(CHAR16 *args);
-extern void ls(CHAR16 *args);
-extern void lsblk(CHAR16 *args);
-extern void pconf(CHAR16 *args);
-extern void reboot(CHAR16 *args);
-extern void sconf(CHAR16 *args);
-extern void print_revision(CHAR16 *args);
-extern void print_version(CHAR16 *args);
-
-#endif /* _CMD_H_ */
+#endif /* _CONFIG_H_ */

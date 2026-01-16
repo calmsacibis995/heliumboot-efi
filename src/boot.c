@@ -82,7 +82,14 @@ efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
 #endif /* _LP64 */
 #endif /* DEBUG_BLD */
 
-	StartMenu();
+	Status = ReadConfig(L"config.dat");
+	if (EFI_ERROR(Status))
+		HeliumBootPanic(Status, L"Cannot load config file!\n");
+
+	if (!NoMenuLoad)
+		StartMenu();
+	else
+		CommandMonitor();
 
 	return EFI_SUCCESS;
 }

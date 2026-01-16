@@ -35,6 +35,142 @@
  * Execute an a.out binary.
  */
 
+#include <efi.h>
+#include <efilib.h>
+
 #include "aout.h"
+#include "boot.h"
 
+BOOLEAN
+IsAOut(UINT8 *Header)
+{
+    struct Exec *exec = (struct Exec *)Header;
 
+    switch (exec->a_magic) {
+        case OMAGIC:
+            break;
+        case NMAGIC:
+        case ZMAGIC:
+            if (exec->a_text == 0)
+                return FALSE;
+            break;
+        default:
+            return FALSE;
+    }
+
+    return TRUE;
+}
+
+EFI_STATUS
+LoadAOutBinary(EFI_FILE_HANDLE File)
+{
+    EFI_STATUS Status;
+    struct Exec exec;
+    UINTN Size;
+    UINTN TotalMem;
+    EFI_PHYSICAL_ADDRESS AllocAddr = 0;
+    UINTN Pages = 0;
+    VOID *LoadBase = NULL;
+    UINTN ReadSize;
+
+    /* Read header */
+    Size = sizeof(exec);
+    Status = uefi_call_wrapper(File->Read, 3, File, &Size, &exec);
+    if (EFI_ERROR(Status) || Size != sizeof(exec)) {
+        PrintToScreen(L"Failed to read full a.out header: %r\n", Status);
+        return EFI_LOAD_ERROR;
+    }
+
+    /* OMAGIC stores text directly in data region - flatten it */
+    if (exec.a_magic == OMAGIC) {
+        exec.a_data += exec.a_text;
+        exec.a_text = 0;
+    }
+
+    /* Basic validation and overflow checks */
+    if ((UINTN)exec.a_text > (UINTN)-1) {
+        PrintToScreen(L"Invalid text size\n");
+        return EFI_LOAD_ERROR;
+    }
+    if ((UINTN)exec.a_data > (UINTN)-1) {
+        PrintToScreen(L"Invalid data size\n");
+        return EFI_LOAD_ERROR;
+    }
+    if ((UINTN)exec.a_bss > (UINTN)-1) {
+        PrintToScreen(L"Invalid bss size\n");
+        return EFI_LOAD_ERROR;
+    }
+    if ((UINTN)exec.a_text + (UINTN)exec.a_data > (UINTN)-1 - (UINTN)exec.a_bss) {
+        PrintToScreen(L"Segment sizes overflow\n");
+        return EFI_LOAD_ERROR;
+    }
+
+    TotalMem = (UINTN)exec.a_text + (UINTN)exec.a_data + (UINTN)exec.a_bss;
+    if (TotalMem == 0) {
+        PrintToScreen(L"Nothing to load\n");
+        return EFI_LOAD_ERROR;
+    }
+
+    /* Allocate pages to hold the image */
+    Pages = EFI_SIZE_TO_PAGES(TotalMem);
+    AllocAddr = 0;
+    Status = uefi_call_wrapper(gBS->AllocatePages, 4, AllocateAnyPages, EfiLoaderData, Pages, &AllocAddr);
+    if (EFI_ERROR(Status)) {
+        PrintToScreen(L"Failed to allocate pages for a.out image: %r\n", Status);
+        return EFI_LOAD_ERROR;
+    }
+    LoadBase = (VOID *)(UINTN)AllocAddr;
+
+    /* Read text segment (may be zero for OMAGIC) */
+    if (exec.a_text) {
+        ReadSize = (UINTN)exec.a_text;
+        Status = uefi_call_wrapper(File->Read, 3, File, &ReadSize, LoadBase);
+        if (EFI_ERROR(Status) || ReadSize != (UINTN)exec.a_text) {
+            PrintToScreen(L"Failed to read text segment: %r\n", Status);
+            goto fail;
+        }
+    }
+
+    /* Read data segment */
+    if (exec.a_data) {
+        ReadSize = (UINTN)exec.a_data;
+        Status = uefi_call_wrapper(File->Read, 3, File, &ReadSize, (UINT8 *)LoadBase + exec.a_text);
+        if (EFI_ERROR(Status) || ReadSize != (UINTN)exec.a_data) {
+            PrintToScreen(L"Failed to read data segment: %r\n", Status);
+            goto fail;
+        }
+    }
+
+    /* Zero BSS */
+    if (exec.a_bss) {
+        SetMem((UINT8 *)LoadBase + exec.a_text + exec.a_data, (UINTN)exec.a_bss, 0);
+    }
+
+#if defined(DEBUG_BLD)
+    PrintToScreen(L"a.out entry: 0x%X  load base: 0x%lX\n", exec.a_entry, AllocAddr);
+#endif
+
+    /*
+     * Compute entry pointer. In many a.out variants the entry is an offset
+     * from the load base. If the entry looks like a small offset use it as
+     * such; otherwise treat it as an absolute address.
+     */
+    {
+        UINTN EntryAddr;
+        if ((UINTN)exec.a_entry < TotalMem)
+            EntryAddr = (UINTN)LoadBase + (UINTN)exec.a_entry;
+        else
+            EntryAddr = (UINTN)exec.a_entry;
+
+        /* Jump to entry */
+        void (*Entry)(void) = (void (*)(void))(UINTN)EntryAddr;
+        Entry();
+    }
+
+    return EFI_SUCCESS;
+
+fail:
+    if (AllocAddr != 0 && Pages != 0)
+        uefi_call_wrapper(gBS->FreePages, 2, AllocAddr, Pages);
+    return EFI_LOAD_ERROR;
+}
