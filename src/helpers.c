@@ -38,12 +38,6 @@
 #include "boot.h"
 #include "part.h"
 
-typedef struct BLOCK_IO {
-    EFI_BLOCK_IO_PROTOCOL BlockIo;
-    EFI_BLOCK_IO_PROTOCOL *ParentBlockIo;
-    EFI_LBA StartLba; // Start LBA of the partition
-} PARTITION_BLOCK_IO;
-
 void
 SplitCommandLine(CHAR16 *line, CHAR16 **command, CHAR16 **arguments)
 {
