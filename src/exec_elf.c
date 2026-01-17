@@ -142,12 +142,15 @@ IsElf64(UINT8 *Header)
 }
 
 EFI_STATUS
-LoadElfBinary(EFI_FILE_HANDLE File)
+LoadElfBinary(EFI_HANDLE ImageHandle, EFI_FILE_HANDLE File)
 {
     EFI_STATUS Status;
     Elf64_Ehdr Ehdr;
     Elf64_Phdr *Phdrs = NULL;
-    UINTN Size, i;
+    Elf64_Phdr *Ph;
+    UINTN Size, i, Pages, ReadSize, seg_offset_in_page;
+    VOID *Target;
+    EFI_PHYSICAL_ADDRESS AllocAddr = 0;
 
     Size = sizeof(Ehdr);
     Status = uefi_call_wrapper(File->Read, 3, File, &Size, &Ehdr);
@@ -186,11 +189,7 @@ LoadElfBinary(EFI_FILE_HANDLE File)
     }
 
     for (i = 0; i < Ehdr.e_phnum; i++) {
-        Elf64_Phdr *Ph = &Phdrs[i];
-        EFI_PHYSICAL_ADDRESS AllocAddr = 0;
-        UINTN Pages, ReadSize;
-        UINTN seg_offset_in_page;
-        VOID *Target;
+        Ph = &Phdrs[i];
 
         if (Ph->p_type != PT_LOAD)
             continue;
@@ -237,7 +236,52 @@ LoadElfBinary(EFI_FILE_HANDLE File)
     uefi_call_wrapper(gBS->FreePool, 1, Phdrs);
     Phdrs = NULL;
 
-    /* Jump to entry (caller should have handled ExitBootServices if needed) */
+    /* Exit EFI boot services. */
+    {
+        EFI_STATUS es;
+        EFI_MEMORY_DESCRIPTOR *MemMap = NULL;
+        UINTN MapSize = 0, MapKey = 0, DescSize = 0;
+        UINT32 DescVersion = 0;
+        int attempts = 0;
+
+        /* Loop to handle races where the memory map changes */
+        for (attempts = 0; attempts < 5; attempts++) {
+            es = uefi_call_wrapper(gBS->GetMemoryMap, 5, &MapSize, MemMap, &MapKey, &DescSize, &DescVersion);
+            if (es == EFI_BUFFER_TOO_SMALL) {
+                /* (Re)allocate buffer with some slack */
+                if (MemMap)
+                    uefi_call_wrapper(gBS->FreePool, 1, MemMap);
+                MapSize += 2 * DescSize;
+                es = uefi_call_wrapper(gBS->AllocatePool, 3, EfiLoaderData, MapSize, (VOID **)&MemMap);
+                if (EFI_ERROR(es)) {
+                    PrintToScreen(L"Failed to allocate memory for memory map: %r\n", es);
+                    goto fail;
+                }
+                /* Try again to fill buffer */
+                es = uefi_call_wrapper(gBS->GetMemoryMap, 5, &MapSize, MemMap, &MapKey, &DescSize, &DescVersion);
+            }
+
+            if (EFI_ERROR(es)) {
+                PrintToScreen(L"GetMemoryMap failed: %r\n", es);
+                if (MemMap) { uefi_call_wrapper(gBS->FreePool, 1, MemMap); MemMap = NULL; }
+                goto fail;
+            }
+
+            es = uefi_call_wrapper(gBS->ExitBootServices, 2, ImageHandle, MapKey);
+            if (!EFI_ERROR(es))
+                break;
+
+            /* If ExitBootServices failed we need to retry (map likely changed). */
+            PrintToScreen(L"ExitBootServices failed (attempt %d): %r\n", attempts + 1, es);
+            /* Keep the current MemMap buffer and loop to get updated map again */
+        }
+        if (attempts == 5) {
+            PrintToScreen(L"ExitBootServices failed after retries\n");
+            goto fail;
+        }
+    }
+
+    /* Jump to entry. */
     void (*Entry)(void) = (void (*)(void))(UINTN)Ehdr.e_entry;
     Entry();
 

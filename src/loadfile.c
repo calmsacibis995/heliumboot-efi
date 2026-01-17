@@ -185,7 +185,7 @@ open_volume:
 			return Status;
 		}
 	} else if (IsElf64(Header)) {
-		Status = LoadElfBinary(File);
+		Status = LoadElfBinary(gImageHandle, File);
 		if (EFI_ERROR(Status)) {
 			PrintToScreen(L"Failed to load ELF file %s: %r\n", Status);
 			return Status;

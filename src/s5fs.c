@@ -165,6 +165,17 @@ s5_name_cmp(const CHAR16 *comp, const INT8 *dname)
     return TRUE;
 }
 
+static INT32
+s5_daddr(const struct s5_dinode *din, UINTN idx)
+{
+    UINTN off = idx * 3;
+    UINT8 b0 = (UINT8)din->di_addr[off];
+    UINT8 b1 = (UINT8)din->di_addr[off + 1];
+    UINT8 b2 = (UINT8)din->di_addr[off + 2];
+
+    return (INT32)((UINT32)b0 | ((UINT32)b1 << 8) | ((UINT32)b2 << 16));
+}
+
 /*
  * MountS5: build mount context from block device and superblock buffer.
  */
@@ -265,7 +276,7 @@ ReadS5Dir(void *mount_ctx, const CHAR16 *path)
                 if (EFI_ERROR(Status))
                     return Status;
 
-                b = din.di_addr[i];
+                b = s5_daddr(&din, i);
                 if (b == 0)
                     continue;
 
@@ -363,7 +374,7 @@ ReadS5Dir(void *mount_ctx, const CHAR16 *path)
 
         UINTN i;
         for (i = 0; i < NADDR; i++) {
-            INT32 b = din.di_addr[i];
+            INT32 b = s5_daddr(&din, i);
             if (b == 0)
                 continue;
 
@@ -399,13 +410,22 @@ ReadS5Dir(void *mount_ctx, const CHAR16 *path)
                     vtype_t vt = IFTOVT(fi.di_mode);
                     switch (vt) {
                         case VDIR:
-                            PrintToScreen(L"  <DIR>  %s\n", namew);
+                            PrintToScreen(L"   <DIR>    %s\n", namew);
                             break;
                         case VREG:
-                            PrintToScreen(L" <FILE>  %s  %u bytes\n", namew, fi.di_size);
+                            PrintToScreen(L"  <FILE>    %s  %u bytes\n", namew, fi.di_size);
+                            break;
+                        case VBLK:
+                            PrintToScreen(L"<BLKDEV>    %s\n", namew);
+                            break;
+                        case VCHR:
+                            PrintToScreen(L"<CHRDEV>    %s\n", namew);
+                            break;
+                        case VLNK:
+                            PrintToScreen(L"  <LINK>    %s  %u bytes\n", namew, fi.di_size);
                             break;
                         default:
-                            PrintToScreen(L"  <OTHR> %s\n", namew);
+                            PrintToScreen(L"  <OTHR>    %s\n", namew);
                             break;
                     }
                 } else {

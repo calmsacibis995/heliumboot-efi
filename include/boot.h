@@ -37,6 +37,7 @@
 #define ARRAY_SIZE(arr)  (sizeof(arr) / sizeof((arr)[0]))
 
 #define MIN(a, b)   ((a) < (b) ? (a) : (b))
+#define MAX(a, b)   ((a) > (b) ? (a) : (b))
 
 // Global functions and variables, sorted by filename.
 
@@ -55,6 +56,7 @@ extern EFI_STATUS LoadEfiBinary(CHAR16 *Path, EFI_LOADED_IMAGE *LoadedImage, EFI
 
 // exec_elf.c
 extern BOOLEAN IsElf64(UINT8 *Header);
+extern EFI_STATUS LoadElfBinary(EFI_HANDLE ImageHandle, EFI_FILE_HANDLE File);
 
 // helpers.c
 extern UINTN StrDecimalToUintn(CHAR16 *str);
@@ -74,7 +76,6 @@ extern CHAR16 *StrStr(const CHAR16 *haystack, const CHAR16 *needle);
 
 // loadfile.c
 extern EFI_STATUS LoadFile(CHAR16 *args);
-extern EFI_STATUS LoadElfBinary(EFI_FILE_HANDLE File);
 
 // video.c
 extern EFI_STATUS InitVideo(void);
