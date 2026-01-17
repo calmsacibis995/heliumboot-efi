@@ -45,11 +45,6 @@
 extern BOOLEAN exit_flag;
 extern EFI_HANDLE gImageHandle;
 
-// config.c
-extern BOOLEAN NoMenuLoad;
-extern EFI_STATUS ReadConfig(const UINT16 *Path);
-extern EFI_STATUS WriteConfig(UINT8 Field, UINT8 Value);
-
 // exec_efi.c
 extern BOOLEAN IsEfiBinary(const void *Buffer);
 extern EFI_STATUS LoadEfiBinary(CHAR16 *Path, EFI_LOADED_IMAGE *LoadedImage, EFI_HANDLE DeviceHandle, CHAR16 *ProgArgs);
@@ -65,6 +60,7 @@ extern void HeliumBootPanic(EFI_STATUS Status, const CHAR16 *fmt, ...);
 extern UINT32 SwapBytes32(UINT32 val);
 extern UINT16 SwapBytes16(UINT16 val);
 extern UINT64 GetTimeSeconds(void);
+extern INTN MemCmp(const VOID *p1, const VOID *p2, UINTN Size);
 extern void *MemMove(void *dst, const void *src, UINTN len);
 extern void *MemCopy(void *Dest, const void *Src, UINTN Length);
 extern CHAR16 *GetScreenInfo(void);
@@ -73,6 +69,8 @@ extern void AsmCpuid(UINT32 Leaf, UINT32 subleaf, UINT32 *Eax, UINT32 *Ebx, UINT
 #endif
 extern UINT64 GetTotalMemoryBytes(void);
 extern CHAR16 *StrStr(const CHAR16 *haystack, const CHAR16 *needle);
+extern INTN AsciiStrnCmp(const CHAR8 *s1, const CHAR8 *s2, UINTN n);
+extern UINTN AsciiStrLen(const CHAR8 *s);
 
 // loadfile.c
 extern EFI_STATUS LoadFile(CHAR16 *args);

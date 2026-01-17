@@ -177,5 +177,6 @@ extern EFI_STATUS DetectS5(EFI_BLOCK_IO_PROTOCOL *BlockIo, UINT32 SliceStartLBA,
 extern EFI_STATUS MountS5(EFI_BLOCK_IO_PROTOCOL *BlockIo, UINT32 SliceStartLBA, void *sb_buffer, void **mount_out);
 extern EFI_STATUS ReadS5Dir(void *mount_ctx, const CHAR16 *path);
 extern EFI_STATUS UmountS5(void *mount);
+extern EFI_STATUS OpenS5(void *mount_ctx, const CHAR16 *filename, UINTN mode, void **file_out);
 
 #endif /* _S5FS_H_ */

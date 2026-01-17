@@ -503,7 +503,21 @@ lsblk(CHAR16 *args)
 void
 pconf(CHAR16 *args)
 {
-	PrintToScreen(L"Not implemented yet!\n");
+	EFI_STATUS Status;
+	UINT8 Buffer[256];
+
+	Status = ReadConfig(CONFIG_FILE, Buffer);
+	if (EFI_ERROR(Status)) {
+		PrintToScreen(L"Failed to read config file: %r\n", Status);
+		return;
+	}
+
+	PrintToScreen(L"Don't load the menu on startup:        0x%02x (%s)\n", Buffer[CONFIG_NOMENU_ENTRY],
+		Buffer[CONFIG_NOMENU_ENTRY] ? L"YES" : L"NO");
+	PrintToScreen(L"Configuration file version:            0x%02x\n", Buffer[CONFIG_FILE_VERSION]);
+	PrintToScreen(L"Use UEFI Console:                      0x%02x (%s)\n", Buffer[CONFIG_UEFI_CONSOLE_ENTRY],
+		Buffer[CONFIG_UEFI_CONSOLE_ENTRY] ? L"YES" : L"NO");
+
 	return;
 }
 

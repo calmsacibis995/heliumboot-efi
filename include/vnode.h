@@ -64,4 +64,7 @@ typedef struct vnode {
 
 extern enum vtype iftovt_tab[];
 
+#define S_IFMT      0xF000
+#define IFTOVT(M)   (iftovt_tab[((M) & S_IFMT) >> 12])
+
 #endif /* _VNODE_H_ */

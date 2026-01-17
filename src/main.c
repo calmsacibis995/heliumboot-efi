@@ -36,6 +36,7 @@
 
 #include "boot.h"
 #include "cmd.h"
+#include "config.h"
 #include "menu.h"
 
 static CHAR16 filepath[256] = {0};			// bootloader file path
@@ -82,7 +83,7 @@ efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
 #endif /* _LP64 */
 #endif /* DEBUG_BLD */
 
-	Status = ReadConfig(L"config.dat");
+	Status = ReadConfig(CONFIG_FILE, NULL);
 	if (EFI_ERROR(Status))
 		HeliumBootPanic(Status, L"Cannot load config file!\n");
 
@@ -90,6 +91,10 @@ efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
 		StartMenu();
 	else
 		CommandMonitor();
+
+	Status = DoDownload();
+	if (EFI_ERROR(Status))
+		HeliumBootPanic(Status, L"Download failed!\n");
 
 	return EFI_SUCCESS;
 }

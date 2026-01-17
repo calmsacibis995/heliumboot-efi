@@ -41,7 +41,8 @@
  * Does not include FAT, as it is handled by UEFI natively.
  */
 struct fs_tab_entry fs_tab[] = {
-    { L"s5", DetectS5, sizeof(struct s5_superblock), MountS5, ReadS5Dir, UmountS5 },
-    { L"ufs", DetectUFS, sizeof(struct ufs_superblock), MountUFS, ReadUFSDir, UmountUFS },
-    { NULL, NULL, 0, NULL, NULL, NULL }
+    { L"bfs", DetectBFS, MountBFS, ReadBFSDir, UmountBFS, OpenBFS, sizeof(struct bfs_superblock) },
+    { L"s5", DetectS5, MountS5, ReadS5Dir, UmountS5, OpenS5, sizeof(struct s5_superblock) },
+    { L"ufs", DetectUFS, MountUFS, ReadUFSDir, UmountUFS, OpenUFS, sizeof(struct ufs_superblock) },
+    { NULL, NULL, NULL, NULL, NULL, NULL, 0 }
 };

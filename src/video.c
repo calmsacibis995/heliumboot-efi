@@ -77,6 +77,7 @@
 #include <stdarg.h>
 
 #include "boot.h"
+#include "config.h"
 
 static EFI_GRAPHICS_OUTPUT_PROTOCOL *gop = NULL;
 static EFI_GRAPHICS_OUTPUT_BLT_PIXEL *Shadow;
@@ -508,21 +509,30 @@ PrintToScreen(const CHAR16 *Fmt, ...)
 	va_list va;
 
 	va_start(va, Fmt);
-	UnicodeVSPrint(Buffer, sizeof(Buffer), Fmt, va);
-	va_end(va);
 
-	// Convert the string to ASCII for PutString().
-	for (i = 0; Buffer[i] != L'\0' && i < sizeof(AsciiBuffer) - 1; i++)
-		AsciiBuffer[i] = (Buffer[i] < 0x80) ? (CHAR8)Buffer[i] : '?';
+	if (VideoInitFlag && !UseUefiConsole) {
+		UnicodeVSPrint(Buffer, sizeof(Buffer), Fmt, va);
+		va_end(va);
 
-	AsciiBuffer[i] = '\0';
-	PutString(AsciiBuffer);
+		// Convert the string to ASCII for PutString().
+		for (i = 0; Buffer[i] != L'\0' && i < sizeof(AsciiBuffer) - 1; i++)
+			AsciiBuffer[i] = (Buffer[i] < 0x80) ? (CHAR8)Buffer[i] : '?';
+
+		AsciiBuffer[i] = '\0';
+		PutString(AsciiBuffer);
+	} else {
+		VPrint(Fmt, va);
+		va_end(va);
+	}
 }
 
 void
 InputToScreen(CHAR16 *Prompt, CHAR16 *InStr, UINTN StrLen)
 {
-	InputToScreen_Internal(ST->ConIn, Prompt, InStr, StrLen);
+	if (!UseUefiConsole)
+		InputToScreen_Internal(ST->ConIn, Prompt, InStr, StrLen);
+	else
+		Input(Prompt, InStr, StrLen);
 }
 
 static void

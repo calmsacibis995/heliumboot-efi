@@ -38,18 +38,6 @@
 #include "s5fs.h"
 #include "vnode.h"
 
-#define SECSIZE 512
-
-enum vtype iftovt_tab[] = {
-	VNON, VFIFO, VCHR, VNON,
-    VDIR, VXNAM, VBLK, VNON,
-	VREG, VNON, VLNK, VNON,
-    VNON, VNON, VNON, VNON
-};
-
-#define S_IFMT      0xF000
-#define IFTOVT(M)   (iftovt_tab[((M) & S_IFMT) >> 12])
-
 EFI_STATUS
 DetectS5(EFI_BLOCK_IO_PROTOCOL *BlockIo, UINT32 SliceStartLBA, void *sb_void)
 {
@@ -134,35 +122,6 @@ s5_read_inode(struct s5_mount *mnt, UINT32 ino, struct s5_dinode *din)
     MemMove(din, (UINT8 *)buf + offset, sizeof(struct s5_dinode));
     FreePool(buf);
     return EFI_SUCCESS;
-}
-
-/* Compare a UTF-16 component with the on-disk DIR name (INT8[DIRSIZ]) */
-static BOOLEAN
-s5_name_cmp(const CHAR16 *comp, const INT8 *dname)
-{
-    UINTN i = 0;
-    /* skip leading slashes in comp */
-    while (*comp == L'/' || *comp == L'\\')
-        comp++;
-
-    /* component is empty -> no match */
-    if (*comp == L'\0')
-        return FALSE;
-
-    for (i = 0; i < DIRSIZ; i++) {
-        CHAR8 c = dname[i];
-        if (c == '\0' || c == ' ')
-            break;
-        if ((CHAR16)c != comp[i])
-            return FALSE;
-    }
-
-    /* ensure component length matches dname length */
-    /* check remaining chars in comp */
-    if (comp[i] != L'\0')
-        return FALSE;
-
-    return TRUE;
 }
 
 static INT32
@@ -429,7 +388,7 @@ ReadS5Dir(void *mount_ctx, const CHAR16 *path)
                             break;
                     }
                 } else {
-                    PrintToScreen(L"  <???>  %s\n", namew);
+                    PrintToScreen(L"   <UNK>    %s\n", namew);
                 }
             }
             FreePool(dbuf);
@@ -453,5 +412,104 @@ UmountS5(void *mount)
         mnt->root_vnode = NULL;
 
     FreePool(mnt);
+    return EFI_SUCCESS;
+}
+
+EFI_STATUS
+OpenS5(void *mount_ctx, const CHAR16 *filename, UINTN mode, void **file_out)
+{
+    struct s5_mount *fs = mount_ctx;
+    struct s5_dinode cur;
+    EFI_STATUS Status;
+    CHAR8 name[DIRSIZ + 1];
+    const CHAR16 *p = filename;
+    UINTN i;
+    BOOLEAN found = FALSE;
+    BOOLEAN match = TRUE;
+
+    /* Only support read-only */
+    if (mode != EFI_FILE_MODE_READ)
+        return EFI_UNSUPPORTED;
+
+    /* Start at root inode */
+    Status = s5_read_inode(fs, S5ROOTINO, &cur);
+    if (EFI_ERROR(Status))
+        return Status;
+
+    /* Skip leading '/' */
+    while (*p == L'/')
+        p++;
+
+    while (*p) {
+        UINT32 off = 0;
+
+        /* Extract next path component */
+        UINTN len = 0;
+        while (p[len] && p[len] != L'/' && len < DIRSIZ) {
+            name[len] = (CHAR8)p[len];
+            len++;
+        }
+        name[len] = '\0';
+        p += len;
+        while (*p == L'/')
+            p++;
+
+        /* Must be directory */
+        if ((cur.di_mode & 0170000) != 0040000)
+            return EFI_NOT_FOUND;
+
+        /* Scan directory entries */
+        while (off + sizeof(struct s5_direct) <= cur.di_size) {
+            struct s5_direct d;
+            UINT32 lbn = off / fs->bsize;
+            UINT32 boff = off % fs->bsize;
+            UINT8 block[FsMAXBSIZE];
+
+            INT32 fsblk = s5_daddr(&cur, lbn);
+            if (fsblk == 0)
+                return EFI_DEVICE_ERROR;
+
+            Status = s5_read_block(fs, fsblk, block);
+            if (EFI_ERROR(Status))
+                return Status;
+
+            CopyMem(&d, block + boff, sizeof(d));
+            off += sizeof(d);
+
+            if (d.d_ino == 0)
+                continue;
+
+            for (i = 0; i < DIRSIZ; i++) {
+                CHAR8 a = d.d_name[i];
+                CHAR8 b = (i < AsciiStrLen(name)) ? name[i] : '\0';
+
+                if (a == '\0' || a == ' ') {
+                    if (b != '\0')
+                        match = FALSE;
+                    break;
+                }
+
+                if (a != b) {
+                    match = FALSE;
+                    break;
+                }
+            }
+
+            if (match) {
+                Status = s5_read_inode(fs, d.d_ino, &cur);
+                if (EFI_ERROR(Status))
+                    return Status;
+                found = TRUE;
+                break;
+            }
+        }
+    }
+
+    /* Success: return inode as file handle */
+    *file_out = AllocatePool(sizeof(struct s5_inode));
+    if (!*file_out)
+        return EFI_OUT_OF_RESOURCES;
+
+    CopyMem(*file_out, &cur, sizeof(cur));
     return EFI_SUCCESS;
 }

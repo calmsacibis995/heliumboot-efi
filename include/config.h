@@ -36,11 +36,17 @@
 
 #define CONFIG_NOMENU_ENTRY 0	// Don't start the menu flag (1 = TRUE, 0 = FALSE).
 #define CONFIG_VERSION_ENTRY    1	// Version number.
+#define CONFIG_UEFI_CONSOLE_ENTRY   2   // Use UEFI console flag.
 #define CONFIG_CHKSUM1_ENTRY    254 // Checksum byte 1.
 #define CONFIG_CHKSUM2_ENTRY    255 // Checksum byte 2.
 
 #define CONFIG_FILE_VERSION		1
 
 #define CONFIG_FILE	L"config.dat"
+
+extern BOOLEAN NoMenuLoad;
+extern BOOLEAN UseUefiConsole;
+extern EFI_STATUS ReadConfig(const UINT16 *Path, UINT8 *OutBuf);
+extern EFI_STATUS WriteConfig(UINT8 Field, UINT8 Value);
 
 #endif /* _CONFIG_H_ */

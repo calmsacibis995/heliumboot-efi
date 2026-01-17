@@ -37,6 +37,7 @@
 #include "boot.h"
 #include "config.h"
 
+BOOLEAN UseUefiConsole = FALSE;
 BOOLEAN NoMenuLoad = FALSE;
 
 static void
@@ -110,13 +111,13 @@ CheckSumConfig(UINT8 *Buffer, UINTN Size, BOOLEAN GenerateFlag)
  * EFI_SUCCESS on sucess, any other code on failure.
  */
 EFI_STATUS
-ReadConfig(const UINT16 *Path)
+ReadConfig(const UINT16 *Path, UINT8 *OutBuf)
 {
     EFI_STATUS Status;
     EFI_FILE_HANDLE File = NULL, RootFS = NULL;
     EFI_LOADED_IMAGE *LoadedImage;
     EFI_SIMPLE_FILE_SYSTEM_PROTOCOL *SimpleFs;
-    UINTN ReadSize;
+    UINTN ReadSize, i;
     UINT8 Buffer[256];
     UINT8 DecryptedBuffer[sizeof(Buffer)];
 	UINT8 DefaultDec[256];
@@ -160,7 +161,10 @@ ReadConfig(const UINT16 *Path)
 			 */
 			InitDefaultFile(DefaultDec, sizeof(DefaultDec));
 
+            DefaultDec[CONFIG_NOMENU_ENTRY] = FALSE;
 			DefaultDec[CONFIG_VERSION_ENTRY] = CONFIG_FILE_VERSION;
+            DefaultDec[CONFIG_UEFI_CONSOLE_ENTRY] = FALSE;
+            
 			CheckSumConfig(DefaultDec, sizeof(DefaultDec), TRUE);	// Generate checksum.
 
             ConfigCrypto(DefaultDec, DefaultEnc, sizeof(DefaultDec));
@@ -211,6 +215,19 @@ ReadConfig(const UINT16 *Path)
         NoMenuLoad = TRUE;
     else
         NoMenuLoad = FALSE;
+
+    if (DecryptedBuffer[CONFIG_UEFI_CONSOLE_ENTRY])
+        UseUefiConsole = TRUE;
+    else
+        UseUefiConsole = FALSE;
+
+    /*
+     * Copy the decrypted to an output buffer if we did specify one.
+     */
+    if (OutBuf != NULL) {
+        for (i = 0; i < 256; i++)
+            OutBuf[i] = DecryptedBuffer[i];
+    }
 
     return EFI_SUCCESS;
 }

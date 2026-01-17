@@ -31,35 +31,14 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef _FS_H_
-#define _FS_H_
-
 #include <efi.h>
 #include <efilib.h>
 
-#include "bfs.h"
-#include "s5fs.h"
-#include "ufs.h"
+#include "vnode.h"
 
-typedef EFI_STATUS (*fs_detect_fn)(EFI_BLOCK_IO_PROTOCOL *bio, UINT32 slice_lba, void *sb_buffer);
-typedef EFI_STATUS (*fs_mount_fn)(EFI_BLOCK_IO_PROTOCOL *bio, UINT32 slice_lba, void *sb_buffer, void **mount_out);
-typedef EFI_STATUS (*fs_list_fn)(void *mount_ctx, const CHAR16 *path);
-typedef EFI_STATUS (*fs_umount_fn)(void *mount_ctx);
-typedef EFI_STATUS (*fs_open_file_fn)(void *mount_ctx, const CHAR16 *filename, UINTN mode, void **file_out);
-
-/*
- * Filesystem table entry structure.
- */
-struct fs_tab_entry {
-	CHAR16 *fs_name;		// Filesystem name.
-	fs_detect_fn detect_fs;	// Filesystem detection function.
-	fs_mount_fn mount_fs;	// Filesystem mount function.
-	fs_list_fn list_dir;	// Filesystem directory listing function.
-	fs_umount_fn umount_fs;	// Filesystem umount function.
-	fs_open_file_fn open;	// Filesystem open function.
-	UINTN sb_size;			// Filesystem superblock size.
+enum vtype iftovt_tab[] = {
+	VNON, VFIFO, VCHR, VNON,
+    VDIR, VXNAM, VBLK, VNON,
+	VREG, VNON, VLNK, VNON,
+    VNON, VNON, VNON, VNON
 };
-
-extern struct fs_tab_entry fs_tab[];
-
-#endif /* _FS_H_ */

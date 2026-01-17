@@ -152,5 +152,6 @@ extern EFI_STATUS DetectUFS(EFI_BLOCK_IO_PROTOCOL *BlockIo, UINT32 SliceStartLBA
 extern EFI_STATUS MountUFS(EFI_BLOCK_IO_PROTOCOL *BlockIo, UINT32 SliceStartLBA, void *sb_buffer, void **mount_out);
 extern EFI_STATUS ReadUFSDir(void *mount_ctx, const CHAR16 *path);
 extern EFI_STATUS UmountUFS(void *mount);
+extern EFI_STATUS OpenUFS(void *mount_ctx, const CHAR16 *filename, UINTN mode, void **file_out);
 
 #endif /* UFS_H_ */

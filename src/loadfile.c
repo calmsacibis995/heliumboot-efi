@@ -32,7 +32,7 @@
  */
 
 /*
- * Common file loading routines.
+ * Common executable file loading routines.
  */
 
 #include <efi.h>
@@ -43,6 +43,7 @@
 #include "aout.h"
 #include "boot.h"
 #include "disk.h"
+#include "fs.h"
 #include "vtoc.h"
 
 /*
@@ -55,6 +56,19 @@
  *	- COFF
  *	- ELF
  *	- EFI PE/COFF
+ *
+ * The filesystem types supported are:
+ *	- FAT32
+ *	- The filesystems listed in 'fs_table.c'. View that file for details.
+ *
+ * Large portions of code are shared with the 'ls' command. In particular, the VTOC routines,
+ * the filesystem handling code, and the block device enumeration routine.
+ *
+ * Arguments:
+ * args: Arguments passed by the 'boot' command.
+ *
+ * Return value:
+ * EFI_SUCCESS on success, any other code on failure.
  */
 EFI_STATUS
 LoadFile(CHAR16 *args)
@@ -69,6 +83,14 @@ LoadFile(CHAR16 *args)
 	CHAR16 *ProgArgs = NULL;
 	UINTN DriveIndex = 0;
 	UINTN SliceIndex = 0;
+	UINT32 PartitionStart = 0;
+	UINT32 SliceLBA, SectorStart;
+	struct svr4_vtoc *Vtoc = NULL;
+	struct mbr_partition *Partitions = NULL;
+	struct fs_tab_entry *fs_entry_ptr;
+	VOID *sb = NULL;
+	VOID *mount_ctx = NULL;
+	BOOLEAN detected_by_plugin = FALSE;
 
 	// Process sd(x,y) only.
 	if (!args || StrnCmp(args, L"sd(", 3) != 0) {
@@ -161,6 +183,166 @@ LoadFile(CHAR16 *args)
 	if (BlockIo->Media->RemovableMedia && !BlockIo->Media->LogicalPartition)
 		goto open_volume;
 
+	Partitions = AllocateZeroPool(sizeof(struct mbr_partition) * 4);
+    if (!Partitions) {
+        PrintToScreen(L"Failed to allocate memory for partition table\n");
+        goto cleanup;
+    }
+
+	Status = GetPartitionData(BlockIo, Partitions);
+	if (EFI_ERROR(Status)) {
+		PrintToScreen(L"Error: Cannot get partition data: %r\n", Status);
+		goto cleanup;
+	}
+
+	Status = FindSysVPartition(Partitions, &PartitionStart);
+	if (EFI_ERROR(Status)) {
+		PrintToScreen(L"No System V partition detected.\n");
+		goto cleanup;
+	}
+
+	Vtoc = AllocateZeroPool(sizeof(struct svr4_vtoc));
+    if (!Vtoc) {
+        PrintToScreen(L"Failed to allocate memory for VTOC\n");
+        goto cleanup;
+    }
+
+	Status = ReadVtoc(Vtoc, BlockIo, PartitionStart);
+	if (!EFI_ERROR(Status)) {
+		if (SliceIndex < Vtoc->v_nparts) {
+			SectorStart = Vtoc->v_part[SliceIndex].p_start;
+			SliceLBA = SectorStart;
+			switch (Vtoc->v_part[SliceIndex].p_tag) {
+				case V_NOSLICE:
+					PrintToScreen(L"VTOC slice %u is unassigned.\n", SliceIndex);
+					goto cleanup;
+				case V_BOOT:
+					PrintToScreen(L"VTOC slice %u, starting sector: %u (master boot record)\n", SliceIndex, SectorStart);
+					goto cleanup;
+				case V_ROOT:
+					PrintToScreen(L"VTOC slice %u, starting sector: %u (rootfs)\n", SliceIndex, SectorStart);
+					break;
+				case V_SWAP:
+					PrintToScreen(L"VTOC slice %u, starting sector: %u (swap space)\n", SliceIndex, SectorStart);
+					goto cleanup;
+				case V_USR:
+					PrintToScreen(L"VTOC slice %u, starting sector: %u (/usr)\n", SliceIndex, SectorStart);
+					break;
+				case V_BACKUP:
+					PrintToScreen(L"VTOC slice %u, starting sector: %u (backup)\n", SliceIndex, SectorStart);
+					PrintToScreen(L"This is a placeholder for the entire drive.\n", SliceIndex, SectorStart);
+					goto cleanup;
+				case V_ALTS:
+					PrintToScreen(L"VTOC slice %u, starting sector: %u (alternate sector space)\n", SliceIndex, SectorStart);
+					goto cleanup;
+				case V_OTHER:
+					PrintToScreen(L"VTOC slice %u, starting sector: %u (Non-SysV)\n", SliceIndex, SectorStart);
+					goto cleanup;
+				case V_ALTTRK:
+					PrintToScreen(L"VTOC slice %u, starting sector: %u (alternate track space)\n", SliceIndex, SectorStart);
+					goto cleanup;
+				case V_STAND:
+					PrintToScreen(L"VTOC slice %u, starting sector: %u (/stand)\n", SliceIndex, SectorStart);
+					break;
+				case V_VAR:
+					PrintToScreen(L"VTOC slice %u, starting sector: %u (/var)\n", SliceIndex, SectorStart);
+					break;
+				case V_HOME:
+					PrintToScreen(L"VTOC slice %u, starting sector: %u (/home)\n", SliceIndex, SectorStart);
+					break;
+				case V_DUMP:
+					PrintToScreen(L"VTOC slice %u, starting sector: %u (dump)\n", SliceIndex, SectorStart);
+					goto cleanup;
+				default:
+					PrintToScreen(L"No valid VTOC slice %u (contains invalid slice tag %d)\n", SliceIndex, Vtoc->v_part[SliceIndex].p_tag);
+					goto cleanup;
+			}
+		} else {
+			PrintToScreen(L"Invalid slice index %u\n", SliceIndex);
+			goto cleanup;
+		}
+	} else {
+		PrintToScreen(L"Failed to read VTOC: %r\n", Status);
+		goto cleanup;
+	}
+
+	// Run through all supported filesystems to detect one.
+	for (fs_entry_ptr = fs_tab; fs_entry_ptr && fs_entry_ptr->fs_name != NULL; fs_entry_ptr++) {
+		if (fs_entry_ptr->sb_size == 0 || fs_entry_ptr->detect_fs == NULL)
+			continue;
+
+		sb = AllocateZeroPool(fs_entry_ptr->sb_size);
+		if (!sb) {
+			PrintToScreen(L"Failed to allocate memory for superblock\n");
+			continue;
+		}
+
+		Status = fs_entry_ptr->detect_fs(BlockIo, SliceLBA, sb);
+		if (EFI_ERROR(Status)) {
+			FreePool(sb);
+			sb = NULL;
+			continue;
+		}
+
+		PrintToScreen(L"Detected filesystem: %s\n", fs_entry_ptr->fs_name);
+
+		if (fs_entry_ptr->mount_fs) {
+			Status = fs_entry_ptr->mount_fs(BlockIo, SliceLBA, sb, &mount_ctx);
+			if (EFI_ERROR(Status)) {
+				PrintToScreen(L"Failed to mount %s: %r\n", fs_entry_ptr->fs_name, Status);
+				FreePool(sb);
+				sb = NULL;
+				continue;
+			}
+		}
+
+		FreePool(sb);
+		sb = NULL;
+		detected_by_plugin = TRUE;
+
+		if (fs_entry_ptr->open && mount_ctx) {
+			if (!Path) {
+                PrintToScreen(L"No file path specified!\n");
+                break;
+            }
+			/* fs_open_file_fn should return an EFI_FILE_HANDLE in file_out */
+			Status = fs_entry_ptr->open(mount_ctx, Path, EFI_FILE_MODE_READ, (void **)&File);
+			if (EFI_ERROR(Status)) {
+				PrintToScreen(L"Failed to open file: %r\n", Status);
+			} else {
+				/* Read header for format detection like open_volume path */
+				ReadSize = sizeof(Header);
+				Status = uefi_call_wrapper(File->Read, 3, File, &ReadSize, Header);
+				if (EFI_ERROR(Status)) {
+					PrintToScreen(L"Cannot read file %s: %r\n", Path, Status);
+					uefi_call_wrapper(File->Close, 1, File);
+					File = NULL;
+				} else {
+					uefi_call_wrapper(File->SetPosition, 2, File, 0);
+				}
+			}
+        }
+
+		PrintToScreen(L"Loaded file: %s\n", Path);
+
+		if (fs_entry_ptr->umount_fs && mount_ctx) {
+			fs_entry_ptr->umount_fs(mount_ctx);
+			mount_ctx = NULL;
+		}
+
+		if (detected_by_plugin)
+			break;
+	}
+
+	// A filesystem was detected and the executable was loaded by a plugin.
+	// Clean up and exit if there wasn't one.
+	if (detected_by_plugin)
+		goto check_exec;
+	else {
+		PrintToScreen(L"No supported filesystem found at sd(%d,%d)\n", DriveIndex, SliceIndex);
+		goto cleanup;
+	}
+
 open_volume:
 	Status = uefi_call_wrapper(RootFS->Open, 5, RootFS, &File, Path, EFI_FILE_MODE_READ, 0);
 	if (EFI_ERROR(Status)) {
@@ -178,6 +360,7 @@ open_volume:
 
 	uefi_call_wrapper(File->SetPosition, 2, File, 0);
 
+check_exec:
 	if (IsAOut(Header)) {
 		Status = LoadAOutBinary(File);
 		if (EFI_ERROR(Status)) {
@@ -202,6 +385,9 @@ open_volume:
 		return EFI_UNSUPPORTED;
 	}
 
-	uefi_call_wrapper(File->Close, 1, File);
+cleanup:
+	if (File)
+		uefi_call_wrapper(File->Close, 1, File);
+
 	return EFI_SUCCESS;
 }
