@@ -34,6 +34,8 @@
 #ifndef _CONFIG_H_
 #define _CONFIG_H_
 
+#include <assert.h>
+
 struct ConfigFile {
     UINT16 Magic;
     UINT8 Version;
@@ -43,7 +45,9 @@ struct ConfigFile {
     UINT32 SerialBaudRate;
     UINT8 Padding[244];
     UINT16 CheckSum;
-};
+} __attribute__((packed));
+
+static_assert(sizeof(struct ConfigFile) == 256);
 
 #define CONFIG_FILE_VERSION		2
 #define CONFIG_FILE	L"config.dat"
