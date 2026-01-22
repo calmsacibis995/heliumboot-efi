@@ -38,6 +38,8 @@
 #include "boot.h"
 #include "part.h"
 
+InputFunc InputFunction;
+
 void
 SplitCommandLine(CHAR16 *line, CHAR16 **command, CHAR16 **arguments)
 {
@@ -140,7 +142,7 @@ SwapBytes16(UINT16 val)
 }
 
 INTN
-MemCmp(const VOID *p1, const VOID *p2, UINTN Size)
+MemCmp(const void *p1, const void *p2, UINTN Size)
 {
     const UINT8 *a = (const UINT8 *)p1;
     const UINT8 *b = (const UINT8 *)p2;
@@ -200,6 +202,17 @@ MemCopy(void *Dest, const void *Src, UINTN Length)
 		*d++ = *s++;
 
 	return Dest;
+}
+
+void *
+MemSet(void *dst, UINT8 value, UINTN size)
+{
+    UINT8 *p = (UINT8 *)dst;
+
+    while (size--)
+        *p++ = value;
+
+    return dst;
 }
 
 CHAR16 *
@@ -358,4 +371,30 @@ AsciiStrLen(const CHAR8 *s)
         len++;
 
     return len;
+}
+
+void
+HexDump(UINT8 *Address, UINTN Length)
+{
+	UINTN i;
+
+	for (i = 0; i != Length; i++) {
+		if (i % 16 == 0)
+			PrintToScreen(L"\n0x%08x: ", Address + i);
+		PrintToScreen(L"%02x ", *(Address + i));
+	}
+
+	PrintToScreen(L"\n\n");
+}
+
+EFI_STATUS
+ReadInputData(UINT8 *Dest, UINTN *Length)
+{
+	return (*InputFunction)(Dest, Length);
+}
+
+UINT8 *
+DestinationAddress(void)
+{
+	return (UINT8 *)ActualDestinationAddress;
 }

@@ -71,19 +71,19 @@ riscv64/boot.so: $(RISCV64_OBJS)
 # Object rules for debug/dev builds.
 x86_64/debug_vers.o: x86_64/vers.c
 	$(HIDE)$(ECHO) "  CC       $(notdir $@)"
-	$(X86_64_CC) $(X86_64_DEBUG_CFLAGS) -c $< -o $@
+	$(HIDE)$(X86_64_CC) $(X86_64_DEBUG_CFLAGS) -c $< -o $@
 
 aarch64/debug_vers.o: aarch64/vers.c
 	$(HIDE)$(ECHO) "  CC       $(notdir $@)"
-	$(AARCH64_CC) $(AARCH64_DEBUG_CFLAGS) -c $< -o $@
+	$(HIDE)$(AARCH64_CC) $(AARCH64_DEBUG_CFLAGS) -c $< -o $@
 
 x86_64/dev_vers.o: x86_64/vers.c
 	$(HIDE)$(ECHO) "  CC       $(notdir $@)"
-	$(X86_64_CC) $(X86_64_DEV_CFLAGS) -c $< -o $@
+	$(HIDE)$(X86_64_CC) $(X86_64_DEV_CFLAGS) -c $< -o $@
 
 aarch64/dev_vers.o: aarch64/vers.c
 	$(HIDE)$(ECHO) "  CC       $(notdir $@)"
-	$(AARCH64_CC) $(AARCH64_DEV_CFLAGS) -c $< -o $@
+	$(HIDE)$(AARCH64_CC) $(AARCH64_DEV_CFLAGS) -c $< -o $@
 
 x86_64/boot_debug.so: $(X86_64_DEBUG_OBJS)
 	$(HIDE)$(ECHO) "  LD       $(notdir $@)"

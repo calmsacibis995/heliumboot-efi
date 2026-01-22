@@ -31,35 +31,52 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef _CONFIG_H_
-#define _CONFIG_H_
+/*
+ * Portions of this code are derived from Symbian's ubootldr, adapted for UEFI,
+ * which can be found here: https://github.com/cdaffara/symbiandump-os1/tree/master/sf/os/kernelhwsrv/brdbootldr/ubootldr
+ *
+ * These portions of code are licensed under the Eclipse Public License v1.0.
+ * It is available at the URL "http://www.eclipse.org/legal/epl-v10.html".
+ *
+ * Copyright (c) 2005-2009 Nokia Corporation and/or its subsidiary(-ies).
+ * All rights reserved.
+ */
 
-struct ConfigFile {
-    UINT16 Magic;
-    UINT8 Version;
-    BOOLEAN MenuFlag;
-    BOOLEAN UefiConsoleFlag;
-    UINT8 SerialPort;
-    UINT32 SerialBaudRate;
-    UINT8 Padding[244];
-    UINT16 CheckSum;
+#ifndef _ZIP_H_
+#define _ZIP_H_
+
+#include <efi.h>
+#include <efilib.h>
+
+typedef enum {
+    ZIP_HEADER_NOT_PROCESSED = 0,
+    ZIP_HEADER_PROCESSING,
+    ZIP_HEADER_DONE,
+    ZIP_ERROR
+} ZIP_HEADER_STATE;
+
+struct ZipInfo {
+    INTN Flags;
+    INTN CompressionMethod;
+    UINTN Crc;
+    INTN CompressedSize;
+    INTN UncompressedSize;
+    INTN FilenameLength;
+    INTN ExtraLength;
+    INTN NameOffset;
+    INTN DataOffset;
+    CHAR8 *Filename;
+    UINTN InBufSize;
+    volatile UINTN FileBufW;
+    volatile UINTN FileBufR;
+    UINTN FileBufSize;
+    UINT8 *FileBuf;
+    ZIP_HEADER_STATE ProcessedHeader;
+    volatile INTN HeaderDone;
+    UINT8 *OutBuf;
+    INTN Remain;
 };
 
-#define CONFIG_FILE_VERSION		2
-#define CONFIG_FILE	L"config.dat"
+extern EFI_STATUS ReadBlockToBuffer(struct ZipInfo *Zip, EFI_FILE_PROTOCOL *BootFile);
 
-#define CONFIG_MAGIC 0xBEEF
-#define CFG_FIELD_MAGIC         0
-#define CFG_FIELD_VERSION       2
-#define CFG_FIELD_NOMENU        3
-#define CFG_FIELD_UEFI_CONSOLE  4
-#define CFG_FIELD_SERIAL_PORT   5
-#define CFG_FIELD_SERIAL_BAUD   6
-#define CFG_FIELD_CHKSUM        254
-
-extern BOOLEAN NoMenuLoad;
-extern BOOLEAN UseUefiConsole;
-extern EFI_STATUS ReadConfig(const UINT16 *Path, struct ConfigFile *OutCfg);
-extern EFI_STATUS WriteConfig(UINT8 Field, UINT32 Value);
-
-#endif /* _CONFIG_H_ */
+#endif /* _ZIP_H_ */

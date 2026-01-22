@@ -39,11 +39,17 @@
 #define MIN(a, b)   ((a) < (b) ? (a) : (b))
 #define MAX(a, b)   ((a) > (b) ? (a) : (b))
 
+// Global typedef's and structs.
+
+typedef EFI_STATUS (*InputFunc)(UINT8 *Dest, UINTN *Length);
+
 // Global functions and variables, sorted by filename.
 
-// boot.c
-extern BOOLEAN exit_flag;
-extern EFI_HANDLE gImageHandle;
+// download.c
+extern BOOLEAN ImageDeflated;
+extern BOOLEAN ImageZip;
+extern UINTN FileSize, LoadSize;
+extern EFI_STATUS DoDownload(void);
 
 // exec_efi.c
 extern BOOLEAN IsEfiBinary(const void *Buffer);
@@ -54,15 +60,17 @@ extern BOOLEAN IsElf64(UINT8 *Header);
 extern EFI_STATUS LoadElfBinary(EFI_HANDLE ImageHandle, EFI_FILE_HANDLE File);
 
 // helpers.c
+extern InputFunc InputFunction;
 extern UINTN StrDecimalToUintn(CHAR16 *str);
 extern void SplitCommandLine(CHAR16 *line, CHAR16 **command, CHAR16 **arguments);
 extern void HeliumBootPanic(EFI_STATUS Status, const CHAR16 *fmt, ...);
 extern UINT32 SwapBytes32(UINT32 val);
 extern UINT16 SwapBytes16(UINT16 val);
 extern UINT64 GetTimeSeconds(void);
-extern INTN MemCmp(const VOID *p1, const VOID *p2, UINTN Size);
+extern INTN MemCmp(const void *p1, const void *p2, UINTN Size);
 extern void *MemMove(void *dst, const void *src, UINTN len);
 extern void *MemCopy(void *Dest, const void *Src, UINTN Length);
+extern void *MemSet(void *dst, UINT8 value, UINTN size);
 extern CHAR16 *GetScreenInfo(void);
 #if defined(X86_64_BLD)
 extern void AsmCpuid(UINT32 Leaf, UINT32 subleaf, UINT32 *Eax, UINT32 *Ebx, UINT32 *Ecx, UINT32 *Edx);
@@ -71,9 +79,22 @@ extern UINT64 GetTotalMemoryBytes(void);
 extern CHAR16 *StrStr(const CHAR16 *haystack, const CHAR16 *needle);
 extern INTN AsciiStrnCmp(const CHAR8 *s1, const CHAR8 *s2, UINTN n);
 extern UINTN AsciiStrLen(const CHAR8 *s);
+extern void HexDump(UINT8 *Address, UINTN Length);
+extern EFI_STATUS ReadInputData(UINT8 *Dest, UINTN *Length);
+extern EFI_STATUS ReadAndPrintChar(EFI_SERIAL_IO_PROTOCOL *Serial);
+extern UINT8 *DestinationAddress(void);
 
 // loadfile.c
 extern EFI_STATUS LoadFile(CHAR16 *args);
+
+// main.c
+#if _LP64
+extern UINT64 *ActualDestinationAddress;
+#else
+extern UINT32 *ActualDestinationAddress;
+#endif
+extern BOOLEAN exit_flag;
+extern EFI_HANDLE gImageHandle;
 
 // video.c
 extern EFI_STATUS InitVideo(void);
@@ -96,5 +117,8 @@ extern const CHAR16 *getblddate(void);
 extern const CHAR16 *getrevdate(void);
 extern const CHAR16 *getcommitno(void);
 extern const CHAR16 *getbuildno(void);
+
+// zip.c
+extern UINTN ImageReadProgress;
 
 #endif /* _BOOT_H_ */

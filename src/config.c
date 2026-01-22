@@ -36,6 +36,7 @@
 
 #include "boot.h"
 #include "config.h"
+#include "serial.h"
 
 BOOLEAN UseUefiConsole = FALSE;
 BOOLEAN NoMenuLoad = FALSE;
@@ -65,36 +66,79 @@ InitDefaultFile(UINT8 *Buffer, UINTN Size)
 }
 
 static EFI_STATUS
-CheckSumConfig(UINT8 *Buffer, UINTN Size, BOOLEAN GenerateFlag)
+CheckSumConfig(struct ConfigFile *Cfg, BOOLEAN GenerateFlag)
 {
     UINTN i;
     UINT16 TheSum = 0;
     UINT16 FileSum = 0;
+    UINT8 *buf = (UINT8 *)Cfg;
+    UINTN size = sizeof(*Cfg);
+    UINTN chksum_off = size - sizeof(UINT16);
 
-    /* Validate that the buffer is large enough to contain checksum entries */
-    if (Size <= CONFIG_CHKSUM2_ENTRY)
+    if (size < sizeof(UINT16))
         return EFI_INVALID_PARAMETER;
 
-    /* Compute 16-bit sum of all bytes except the two checksum bytes */
-    for (i = 0; i < Size; i++) {
-        if (i == CONFIG_CHKSUM1_ENTRY || i == CONFIG_CHKSUM2_ENTRY)
+    for (i = 0; i < size; i++) {
+        if (i == chksum_off || i == chksum_off + 1)
             continue;
-        TheSum = (UINT16)(TheSum + Buffer[i]);
+        TheSum = (UINT16)(TheSum + buf[i]);
     }
 
     if (GenerateFlag) {
-        /* Store checksum (big endian: high byte first) */
-        Buffer[CONFIG_CHKSUM1_ENTRY] = (UINT8)((TheSum >> 8) & 0xFF);
-        Buffer[CONFIG_CHKSUM2_ENTRY] = (UINT8)(TheSum & 0xFF);
+        /* Store checksum in big-endian order (same on-disk format as before) */
+        buf[chksum_off] = (UINT8)((TheSum >> 8) & 0xFF);
+        buf[chksum_off + 1] = (UINT8)(TheSum & 0xFF);
         return EFI_SUCCESS;
     } else {
-        /* Read stored checksum and compare */
-        FileSum = ((UINT16)Buffer[CONFIG_CHKSUM1_ENTRY] << 8) | (UINT16)Buffer[CONFIG_CHKSUM2_ENTRY];
+        FileSum = ((UINT16)buf[chksum_off] << 8) | (UINT16)buf[chksum_off + 1];
         if (FileSum == TheSum)
             return EFI_SUCCESS;
         else
             return EFI_CRC_ERROR;
     }
+}
+
+static EFI_STATUS
+WriteDefaultConfig(UINT8 *Buffer, UINT8 *OutBuffer, EFI_FILE_HANDLE RootFS, EFI_FILE_HANDLE File, const CHAR16 *Path)
+{
+    EFI_STATUS Status;
+
+    Status = uefi_call_wrapper(RootFS->Open, 5, RootFS, &File, Path, EFI_FILE_MODE_READ | EFI_FILE_MODE_WRITE | EFI_FILE_MODE_CREATE, 0);
+    if (EFI_ERROR(Status)) {
+        PrintToScreen(L"Cannot create file %s: %r\n", Path, Status);
+        return Status;
+    }
+
+    /*
+     * Build a default ConfigFile in-memory, checksum it, encrypt and write.
+     */
+    struct ConfigFile Dec = { 0 };
+    InitDefaultFile((UINT8 *)&Dec, sizeof(Dec));
+    Dec.Magic = CONFIG_MAGIC;
+    Dec.Version = CONFIG_FILE_VERSION;
+    Dec.MenuFlag = FALSE;
+    Dec.UefiConsoleFlag = FALSE;
+    Dec.SerialPort = 0;
+    Dec.SerialBaudRate = 115200;
+
+    Status = CheckSumConfig(&Dec, TRUE);
+    if (EFI_ERROR(Status)) {
+        uefi_call_wrapper(File->Close, 1, File);
+        return Status;
+    }
+
+    ConfigCrypto((UINT8 *)&Dec, OutBuffer, sizeof(Dec));
+
+    UINTN WriteSize = sizeof(Dec);
+    Status = uefi_call_wrapper(File->Write, 3, File, &WriteSize, OutBuffer);
+    if (EFI_ERROR(Status)) {
+        PrintToScreen(L"Cannot write to file %s: %r\n", Path, Status);
+        uefi_call_wrapper(File->Close, 1, File);
+        return Status;
+    }
+
+    uefi_call_wrapper(File->Close, 1, File);
+    return EFI_SUCCESS;
 }
 
 /*
@@ -106,22 +150,23 @@ CheckSumConfig(UINT8 *Buffer, UINTN Size, BOOLEAN GenerateFlag)
  *
  * Arguments:
  * Path: File path.
+ * OutCfg: optional pointer to a struct ConfigFile to receive the decoded config.
  *
  * Return value:
  * EFI_SUCCESS on sucess, any other code on failure.
  */
 EFI_STATUS
-ReadConfig(const UINT16 *Path, UINT8 *OutBuf)
+ReadConfig(const UINT16 *Path, struct ConfigFile *OutCfg)
 {
     EFI_STATUS Status;
     EFI_FILE_HANDLE File = NULL, RootFS = NULL;
     EFI_LOADED_IMAGE *LoadedImage;
     EFI_SIMPLE_FILE_SYSTEM_PROTOCOL *SimpleFs;
-    UINTN ReadSize, i;
-    UINT8 Buffer[256];
-    UINT8 DecryptedBuffer[sizeof(Buffer)];
-	UINT8 DefaultDec[256];
-	UINT8 DefaultEnc[sizeof(DefaultDec)];
+    UINTN ReadSize;
+    UINT8 EncryptedBuf[sizeof(struct ConfigFile)];
+    struct ConfigFile DecryptedCfg;
+    UINT8 DefaultDec[sizeof(DecryptedCfg)];
+    UINT8 DefaultEnc[sizeof(DefaultDec)];
 
     Status = uefi_call_wrapper(gBS->HandleProtocol, 3, gImageHandle, &gEfiLoadedImageProtocolGuid, (VOID **)&LoadedImage);
     if (EFI_ERROR(Status)) {
@@ -145,48 +190,19 @@ ReadConfig(const UINT16 *Path, UINT8 *OutBuf)
     if (EFI_ERROR(Status)) {
 		if (Status == EFI_NOT_FOUND) {
             PrintToScreen(L"Config file not found, creating default.\n");
-
-            Status = uefi_call_wrapper(RootFS->Open, 5, RootFS, &File, Path,
-				EFI_FILE_MODE_READ | EFI_FILE_MODE_WRITE | EFI_FILE_MODE_CREATE, 0);
+            Status = WriteDefaultConfig(DefaultDec, DefaultEnc, RootFS, File, Path);
             if (EFI_ERROR(Status)) {
-                PrintToScreen(L"Cannot create file %s: %r\n", Path, Status);
+                PrintToScreen(L"Failed to create default config file: %r\n", Status);
                 return Status;
             }
-
-            /*
-			 * Create a minimal default decrypted config (256 bytes).
-			 *
-			 * Initialize the decrypted buffer, write the default values to it,
-			 * encrypt it, and then write it to the file.
-			 */
-			InitDefaultFile(DefaultDec, sizeof(DefaultDec));
-
-            DefaultDec[CONFIG_NOMENU_ENTRY] = FALSE;
-			DefaultDec[CONFIG_VERSION_ENTRY] = CONFIG_FILE_VERSION;
-            DefaultDec[CONFIG_UEFI_CONSOLE_ENTRY] = FALSE;
-            
-			CheckSumConfig(DefaultDec, sizeof(DefaultDec), TRUE);	// Generate checksum.
-
-            ConfigCrypto(DefaultDec, DefaultEnc, sizeof(DefaultDec));
-
-            UINTN WriteSize = sizeof(DefaultEnc);
-            Status = uefi_call_wrapper(File->Write, 3, File, &WriteSize, DefaultEnc);
-            if (EFI_ERROR(Status)) {
-                PrintToScreen(L"Cannot write to file %s: %r\n", Path, Status);
-                uefi_call_wrapper(File->Close, 1, File);
-                return Status;
-            }
-
-            uefi_call_wrapper(File->Close, 1, File);
-            return EFI_SUCCESS;
         }
 
         PrintToScreen(L"Cannot open file %s: %r\n", Path, Status);
         return Status;
     }
 
-    ReadSize = sizeof(Buffer);
-    Status = uefi_call_wrapper(File->Read, 3, File, &ReadSize, Buffer);
+    ReadSize = sizeof(EncryptedBuf);
+    Status = uefi_call_wrapper(File->Read, 3, File, &ReadSize, EncryptedBuf);
     if (EFI_ERROR(Status)) {
         PrintToScreen(L"Cannot read file %s: %r\n", Path, Status);
         uefi_call_wrapper(File->Close, 1, File);
@@ -195,75 +211,75 @@ ReadConfig(const UINT16 *Path, UINT8 *OutBuf)
 
     uefi_call_wrapper(File->Close, 1, File);
 
-    ConfigCrypto(Buffer, DecryptedBuffer, ReadSize);
+    /* Decrypt directly into the struct */
+    ConfigCrypto(EncryptedBuf, (UINT8 *)&DecryptedCfg, ReadSize);
 
-	Status = CheckSumConfig(DecryptedBuffer, ReadSize, FALSE);
-	if (EFI_ERROR(Status)) {
-		PrintToScreen(L"Invalid config file checksum!\n");
-		return Status;
-	}
+	Status = CheckSumConfig(&DecryptedCfg, FALSE);
+    if (EFI_ERROR(Status)) {
+        PrintToScreen(L"Invalid config file checksum!\n");
+        return Status;
+    }
 
 #if defined(DEBUG_BLD)
-	PrintToScreen(L"No Menu Load flag:     0x%02x\n", DecryptedBuffer[CONFIG_NOMENU_ENTRY]);
-	PrintToScreen(L"Config file version:   0x%02x\n", DecryptedBuffer[CONFIG_VERSION_ENTRY]);
+	PrintToScreen(L"No Menu Load flag:     0x%02x\n", DecryptedCfg.MenuFlag);
+	PrintToScreen(L"Config file version:   0x%02x\n", DecryptedCfg.Version);
+	PrintToScreen(L"Serial port:           0x%02x\n", DecryptedCfg.SerialPort);
+	PrintToScreen(L"Serial port baud:      %u\n", DecryptedCfg.SerialBaudRate);
 #endif
 
     /*
      * Read the settings from the decrypted buffer and set them accordingly.
      */
-    if (DecryptedBuffer[CONFIG_NOMENU_ENTRY])
-        NoMenuLoad = TRUE;
-    else
-        NoMenuLoad = FALSE;
+    NoMenuLoad = DecryptedCfg.MenuFlag ? TRUE : FALSE;
+    UseUefiConsole = DecryptedCfg.UefiConsoleFlag ? TRUE : FALSE;
+    SerialDownloadPort = DecryptedCfg.SerialPort;
+    SerialBaud = DecryptedCfg.SerialBaudRate;
 
-    if (DecryptedBuffer[CONFIG_UEFI_CONSOLE_ENTRY])
-        UseUefiConsole = TRUE;
-    else
-        UseUefiConsole = FALSE;
+#if defined(DEBUG_BLD)
+	PrintToScreen(L"SerialBaud: %u\n", SerialBaud);
+#endif
 
     /*
      * Copy the decrypted to an output buffer if we did specify one.
      */
-    if (OutBuf != NULL) {
-        for (i = 0; i < 256; i++)
-            OutBuf[i] = DecryptedBuffer[i];
-    }
+    if (OutCfg != NULL)
+        *OutCfg = DecryptedCfg;
 
     return EFI_SUCCESS;
 }
 
 EFI_STATUS
-WriteConfig(UINT8 Field, UINT8 Value)
+WriteConfig(UINT8 Field, UINT32 Value)
 {
-	EFI_STATUS Status;
-    EFI_FILE_HANDLE File = NULL, RootFS = NULL;
-    EFI_LOADED_IMAGE *LoadedImage;
-    EFI_SIMPLE_FILE_SYSTEM_PROTOCOL *SimpleFs;
-    UINTN ReadSize;
-    UINT8 EncryptedBuffer[256];
-    UINT8 DecryptedBuffer[sizeof(EncryptedBuffer)];
+     EFI_STATUS Status;
+     EFI_FILE_HANDLE File = NULL, RootFS = NULL;
+     EFI_LOADED_IMAGE *LoadedImage;
+     EFI_SIMPLE_FILE_SYSTEM_PROTOCOL *SimpleFs;
+     UINTN ReadSize;
+     UINT8 EncryptedBuffer[sizeof(struct ConfigFile)];
+     struct ConfigFile DecryptedCfg;
 
-	Status = uefi_call_wrapper(gBS->HandleProtocol, 3, gImageHandle, &gEfiLoadedImageProtocolGuid, (VOID **)&LoadedImage);
-    if (EFI_ERROR(Status)) {
-        PrintToScreen(L"Cannot get loaded image protocol: %r\n", Status);
-        return Status;
-    }
+     Status = uefi_call_wrapper(gBS->HandleProtocol, 3, gImageHandle, &gEfiLoadedImageProtocolGuid, (VOID **)&LoadedImage);
+     if (EFI_ERROR(Status)) {
+         PrintToScreen(L"Cannot get loaded image protocol: %r\n", Status);
+         return Status;
+     }
 
-    Status = uefi_call_wrapper(gBS->HandleProtocol, 3, LoadedImage->DeviceHandle, &gEfiSimpleFileSystemProtocolGuid, (VOID **)&SimpleFs);
-    if (EFI_ERROR(Status)) {
-        PrintToScreen(L"Cannot get Simple File System protocol: %r\n", Status);
-        return Status;
-    }
+     Status = uefi_call_wrapper(gBS->HandleProtocol, 3, LoadedImage->DeviceHandle, &gEfiSimpleFileSystemProtocolGuid, (VOID **)&SimpleFs);
+     if (EFI_ERROR(Status)) {
+         PrintToScreen(L"Cannot get Simple File System protocol: %r\n", Status);
+         return Status;
+     }
 
-    Status = uefi_call_wrapper(SimpleFs->OpenVolume, 2, SimpleFs, &RootFS);
-    if (EFI_ERROR(Status)) {
-        PrintToScreen(L"Cannot open filesystem volume: %r\n", Status);
-        return Status;
-    }
+     Status = uefi_call_wrapper(SimpleFs->OpenVolume, 2, SimpleFs, &RootFS);
+     if (EFI_ERROR(Status)) {
+         PrintToScreen(L"Cannot open filesystem volume: %r\n", Status);
+         return Status;
+     }
 
 	Status = uefi_call_wrapper(RootFS->Open, 5, RootFS, &File, CONFIG_FILE,
 		EFI_FILE_MODE_READ | EFI_FILE_MODE_WRITE, 0);
-    if (EFI_ERROR(Status)) {
+     if (EFI_ERROR(Status)) {
 		if (Status == EFI_NOT_FOUND) {
 			PrintToScreen(L"Config file not found!\n");
 			return Status;
@@ -273,53 +289,74 @@ WriteConfig(UINT8 Field, UINT8 Value)
 		return Status;
 	}
 
-	ReadSize = sizeof(EncryptedBuffer);
-    Status = uefi_call_wrapper(File->Read, 3, File, &ReadSize, EncryptedBuffer);
-    if (EFI_ERROR(Status)) {
-        PrintToScreen(L"Cannot read file %s: %r\n", CONFIG_FILE, Status);
-        uefi_call_wrapper(File->Close, 1, File);
-        return Status;
-    }
+     ReadSize = sizeof(EncryptedBuffer);
+     Status = uefi_call_wrapper(File->Read, 3, File, &ReadSize, EncryptedBuffer);
+     if (EFI_ERROR(Status)) {
+         PrintToScreen(L"Cannot read file %s: %r\n", CONFIG_FILE, Status);
+         uefi_call_wrapper(File->Close, 1, File);
+         return Status;
+     }
 
-    /* Rewind so we can overwrite the existing contents. */
-    Status = uefi_call_wrapper(File->SetPosition, 2, File, 0);
-    if (EFI_ERROR(Status)) {
-        PrintToScreen(L"Failed to seek config file: %r\n", Status);
-        uefi_call_wrapper(File->Close, 1, File);
-        return Status;
-    }
- 
-    ConfigCrypto(EncryptedBuffer, DecryptedBuffer, ReadSize);
+     /* Rewind so we can overwrite the existing contents. */
+     Status = uefi_call_wrapper(File->SetPosition, 2, File, 0);
+     if (EFI_ERROR(Status)) {
+         PrintToScreen(L"Failed to seek config file: %r\n", Status);
+         uefi_call_wrapper(File->Close, 1, File);
+         return Status;
+     }
+  
+     // Decrypt buffer for writing.
+     ConfigCrypto(EncryptedBuffer, (UINT8 *)&DecryptedCfg, ReadSize);
 
     switch (Field) {
-		case CONFIG_VERSION_ENTRY:
-			PrintToScreen(L"Cannot write to version field!\n");
-			return EFI_UNSUPPORTED;
-		case CONFIG_CHKSUM1_ENTRY:
-			PrintToScreen(L"Cannot write to checksum fields!\n");
-			return EFI_UNSUPPORTED;
-		case CONFIG_CHKSUM2_ENTRY:
-			PrintToScreen(L"Cannot write to checksum fields!\n");
-			return EFI_UNSUPPORTED;
-		default:
-			DecryptedBuffer[Field] = Value;
-			break;
-	}
+        case CFG_FIELD_NOMENU:
+            DecryptedCfg.MenuFlag = Value ? TRUE : FALSE;
+            break;
+        case CFG_FIELD_UEFI_CONSOLE:
+            DecryptedCfg.UefiConsoleFlag = Value ? TRUE : FALSE;
+            break;
+        case CFG_FIELD_SERIAL_PORT:
+            if (Value > 3) {
+                PrintToScreen(L"Invalid serial port number. Valid numbers are 0-3.\n");
+                return EFI_INVALID_PARAMETER;
+            }
+            DecryptedCfg.SerialPort = (UINT8)Value;
+            break;
+        case CFG_FIELD_SERIAL_BAUD:
+            DecryptedCfg.SerialBaudRate = Value;
+            break;
+        case CFG_FIELD_CHKSUM:
+        case CFG_FIELD_CHKSUM + 1:
+        case CFG_FIELD_VERSION:
+            PrintToScreen(L"Cannot write to reserved fields!\n");
+            return EFI_UNSUPPORTED;
+        default:
+            PrintToScreen(L"Unknown config field: %d\n", Field);
+            return EFI_INVALID_PARAMETER;
+    }
 
-	CheckSumConfig(DecryptedBuffer, ReadSize, TRUE);
-
-	ConfigCrypto(DecryptedBuffer, EncryptedBuffer, ReadSize);
-
-	/* Only write back the bytes we actually read. */
-	UINTN WriteSize = ReadSize;
-    Status = uefi_call_wrapper(File->Write, 3, File, &WriteSize, EncryptedBuffer);
+    // Recalculate the checksum.
+    Status = CheckSumConfig(&DecryptedCfg, TRUE);
     if (EFI_ERROR(Status)) {
-        PrintToScreen(L"Cannot write to file %s: %r\n", CONFIG_FILE, Status);
         uefi_call_wrapper(File->Close, 1, File);
         return Status;
     }
- 
-    uefi_call_wrapper(File->Close, 1, File);
- 
-    return EFI_SUCCESS;
+
+    // Encrypt the buffer again for final write.
+    ConfigCrypto((UINT8 *)&DecryptedCfg, EncryptedBuffer, ReadSize);
+
+     /*
+      * Only write back the bytes we actually read.
+      */
+     UINTN WriteSize = ReadSize;
+     Status = uefi_call_wrapper(File->Write, 3, File, &WriteSize, EncryptedBuffer);
+     if (EFI_ERROR(Status)) {
+         PrintToScreen(L"Cannot write to file %s: %r\n", CONFIG_FILE, Status);
+         uefi_call_wrapper(File->Close, 1, File);
+         return Status;
+     }
+
+     uefi_call_wrapper(File->Close, 1, File);
+
+     return EFI_SUCCESS;
 }

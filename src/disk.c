@@ -37,6 +37,14 @@
 #include "boot.h"
 #include "disk.h"
 
+#define ALIGN_VALUE_ADDEND(Value, Alignment)  (((Alignment) - (Value)) & ((Alignment) - 1U))
+#define ALIGN_VALUE(Value, Alignment)  ((Value) + ALIGN_VALUE_ADDEND(Value, Alignment))
+
+static EFI_BLOCK_IO_PROTOCOL *InputBlockIo;
+static UINT32 InputMediaId;
+static UINT64 InputPos;
+static void *ScratchBuffer;
+
 EFI_STATUS
 FindSysVPartition(struct mbr_partition *Partitions, UINT32 *PartitionStart)
 {
@@ -137,7 +145,7 @@ GetWholeDiskByIndex(UINTN DiskIndex, EFI_BLOCK_IO_PROTOCOL **DiskBio)
 }
 
 EFI_STATUS
-GetWholeDiskBlockIo(EFI_HANDLE *HandleBuffer, UINTN HandleCount,EFI_BLOCK_IO_PROTOCOL **DiskBio)
+GetWholeDiskBlockIo(EFI_HANDLE *HandleBuffer, UINTN HandleCount, EFI_BLOCK_IO_PROTOCOL **DiskBio)
 {
 	EFI_STATUS Status;
 	EFI_BLOCK_IO_PROTOCOL *Bio;
@@ -155,4 +163,120 @@ GetWholeDiskBlockIo(EFI_HANDLE *HandleBuffer, UINTN HandleCount,EFI_BLOCK_IO_PRO
 	}
 
 	return EFI_NOT_FOUND;
+}
+
+BOOLEAN
+BootedFromInternalFlash(void)
+{
+	EFI_STATUS Status;
+    EFI_LOADED_IMAGE_PROTOCOL *LoadedImage;
+    EFI_BLOCK_IO_PROTOCOL *BlockIo;
+
+	Status = uefi_call_wrapper(gBS->HandleProtocol, 3, gImageHandle, &gEfiLoadedImageProtocolGuid, (VOID **)&LoadedImage);
+	if (EFI_ERROR(Status))
+		return FALSE;
+
+	Status = uefi_call_wrapper(gBS->HandleProtocol, 3, LoadedImage->DeviceHandle, &gEfiBlockIoProtocolGuid, (VOID **)&BlockIo);
+    if (EFI_ERROR(Status))
+        return FALSE;
+
+    if (!BlockIo->Media->RemovableMedia)
+        return TRUE;   // eMMC or NVMe or SATA
+
+    return FALSE;
+}
+
+EFI_STATUS
+SearchDrivesRaw(void)
+{
+    EFI_STATUS Status;
+    EFI_HANDLE *Handles = NULL;
+	EFI_BLOCK_IO_PROTOCOL *BlockIo;
+    UINTN HandleCount = 0;
+    UINTN Index;
+
+    PrintToScreen(L"Checking block devices directly.\n");
+
+    Status = uefi_call_wrapper(gBS->LocateHandleBuffer, 5, ByProtocol, &gEfiBlockIoProtocolGuid, NULL, &HandleCount, &Handles);
+    if (EFI_ERROR(Status))
+        return FALSE;
+
+    for (Index = 0; Index < HandleCount; Index++) {
+        Status = uefi_call_wrapper(gBS->HandleProtocol, 3, Handles[Index], &gEfiBlockIoProtocolGuid, (VOID **)&BlockIo);
+        if (EFI_ERROR(Status))
+            continue;
+
+        EFI_BLOCK_IO_MEDIA *M = BlockIo->Media;
+
+        if (!M->MediaPresent)
+            continue;
+
+        /*
+         * Equivalent to "MMC/SD + ROM partition" test.
+         */
+        if (!M->RemovableMedia && M->LogicalPartition) {
+            PrintToScreen(L"Found internal partition: size %lu bytes\n", MultU64x32(M->LastBlock + 1, M->BlockSize));
+
+            FileSize = MultU64x32(M->LastBlock + 1, M->BlockSize);
+
+            InputBlockIo = BlockIo;
+            InputMediaId = M->MediaId;
+
+            uefi_call_wrapper(gBS->FreePool, 1, Handles);
+            goto Found;
+        }
+    }
+
+    PrintToScreen(L"No ROM partitions found\n");
+    gBS->FreePool(Handles);
+    return FALSE;
+
+Found:
+    PrintToScreen(L"ROM partition selected\n");
+
+    InputFunction = ReadFromBlockIo;
+
+    return TRUE;
+}
+
+EFI_STATUS
+ReadFromBlockIo(UINT8 *Dest, UINTN *Length)
+{
+    EFI_STATUS Status;
+    EFI_BLOCK_IO_MEDIA *M = InputBlockIo->Media;
+    UINTN BlockSize = M->BlockSize;
+
+    if (InputPos >= FileSize) {
+        *Length = 0;
+        return EFI_END_OF_FILE;
+    }
+
+    /*
+     * Clamp read length to remaining file size
+     */
+    UINTN Remaining = (UINTN)(FileSize - InputPos);
+    UINTN ToRead = (*Length < Remaining) ? *Length : Remaining;
+
+    /*
+     * Block I/O must be block-aligned.
+     */
+    EFI_LBA Lba = InputPos / BlockSize;
+    UINTN Offset = InputPos % BlockSize;
+
+    UINTN AlignedSize = ALIGN_VALUE(ToRead + Offset, BlockSize);
+
+	// must be BlockSize-aligned
+    Status = uefi_call_wrapper(InputBlockIo->ReadBlocks, 5, InputBlockIo, InputMediaId, Lba, AlignedSize, ScratchBuffer);
+    if (EFI_ERROR(Status))
+        return Status;
+
+    CopyMem(Dest, (UINT8 *)ScratchBuffer + Offset, ToRead);
+
+    InputPos += ToRead;
+    *Length   = ToRead;
+
+    if (InputPos >= FileSize)
+        return EFI_END_OF_FILE;
+
+    return EFI_SUCCESS;
 }

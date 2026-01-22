@@ -503,22 +503,24 @@ lsblk(CHAR16 *args)
 void
 pconf(CHAR16 *args)
 {
-	EFI_STATUS Status;
-	UINT8 Buffer[256];
+    EFI_STATUS Status;
+    struct ConfigFile Cfg;
 
-	Status = ReadConfig(CONFIG_FILE, Buffer);
-	if (EFI_ERROR(Status)) {
-		PrintToScreen(L"Failed to read config file: %r\n", Status);
-		return;
-	}
+    Status = ReadConfig(CONFIG_FILE, &Cfg);
+    if (EFI_ERROR(Status)) {
+        PrintToScreen(L"Failed to read config file: %r\n", Status);
+        return;
+    }
 
-	PrintToScreen(L"Don't load the menu on startup:        0x%02x (%s)\n", Buffer[CONFIG_NOMENU_ENTRY],
-		Buffer[CONFIG_NOMENU_ENTRY] ? L"YES" : L"NO");
-	PrintToScreen(L"Configuration file version:            0x%02x\n", Buffer[CONFIG_FILE_VERSION]);
-	PrintToScreen(L"Use UEFI Console:                      0x%02x (%s)\n", Buffer[CONFIG_UEFI_CONSOLE_ENTRY],
-		Buffer[CONFIG_UEFI_CONSOLE_ENTRY] ? L"YES" : L"NO");
+    PrintToScreen(L"Don't load the menu on startup:        0x%02x (%s)\n", Cfg.MenuFlag,
+        Cfg.MenuFlag ? L"YES" : L"NO");
+    PrintToScreen(L"Configuration file version:            0x%02x\n", Cfg.Version);
+    PrintToScreen(L"Use UEFI Console:                      0x%02x (%s)\n", Cfg.UefiConsoleFlag,
+        Cfg.UefiConsoleFlag ? L"YES" : L"NO");
+    PrintToScreen(L"Serial port for communication:         0x%02x (%u)\n", Cfg.SerialPort, Cfg.SerialPort);
+    PrintToScreen(L"Serial port baud rate:                 0x%08x (%u)\n", Cfg.SerialBaudRate, Cfg.SerialBaudRate);
 
-	return;
+    return;
 }
 
 void
@@ -536,7 +538,8 @@ sconf(CHAR16 *args)
 {
     EFI_STATUS Status;
     UINTN field_num, value_num;
-    UINT8 ConfigField, ConfigValue;
+    UINT8 ConfigField;
+    UINT32 ConfigValue;
     CHAR16 *field_str, *value_str, *p;
 
     if (!args || *args == L'\0') {
@@ -565,18 +568,36 @@ sconf(CHAR16 *args)
     field_num = StrDecimalToUintn(field_str);
     value_num = StrDecimalToUintn(value_str);
 
-	if (field_num >= CONFIG_CHKSUM1_ENTRY) {
-		PrintToScreen(L"Invalid field. Must be 0 to 253.\n");
-        return;
-	}
-
-    if (value_num > 0xFF) {
-        PrintToScreen(L"Invalid value. Must be 0 to 255.\n");
+    /* Accept only writable fields */
+    if (field_num != CFG_FIELD_NOMENU &&
+        field_num != CFG_FIELD_UEFI_CONSOLE &&
+        field_num != CFG_FIELD_SERIAL_PORT &&
+        field_num != CFG_FIELD_SERIAL_BAUD) {
+        PrintToScreen(L"Invalid field. Valid fields are: %d=NoMenu, %d=UefiConsole, %d=SerialPort, %d=SerialBaud\n",
+            CFG_FIELD_NOMENU, CFG_FIELD_UEFI_CONSOLE, CFG_FIELD_SERIAL_PORT, CFG_FIELD_SERIAL_BAUD);
         return;
     }
 
+    /* Validate value ranges per-field */
+    if (field_num == CFG_FIELD_NOMENU || field_num == CFG_FIELD_UEFI_CONSOLE) {
+        if (value_num != 0 && value_num != 1) {
+            PrintToScreen(L"Invalid value. Must be 0 or 1 for this field.\n");
+            return;
+        }
+    } else if (field_num == CFG_FIELD_SERIAL_PORT) {
+        if (value_num > 3) {
+            PrintToScreen(L"Invalid value. Serial port must be 0-3.\n");
+            return;
+        }
+    } else if (field_num == CFG_FIELD_SERIAL_BAUD) {
+        if (value_num > 0xFFFFFFFF) {
+            PrintToScreen(L"Invalid value. Baud rate out of range.\n");
+            return;
+        }
+    }
+
     ConfigField = (UINT8)field_num;
-    ConfigValue = (UINT8)value_num;
+    ConfigValue = (UINT32)value_num;
 
     Status = WriteConfig(ConfigField, ConfigValue);
     if (EFI_ERROR(Status))

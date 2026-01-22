@@ -37,7 +37,9 @@
 #include "boot.h"
 #include "cmd.h"
 #include "config.h"
+#include "disk.h"
 #include "menu.h"
+#include "serial.h"
 
 static CHAR16 filepath[256] = {0};			// bootloader file path
 UINTN bufsize = sizeof(filepath);
@@ -45,10 +47,40 @@ UINTN bufsize = sizeof(filepath);
 BOOLEAN exit_flag = FALSE;
 EFI_HANDLE gImageHandle = NULL;
 
+#ifdef _LP64
+UINT64 *ActualDestinationAddress;
+#else
+UINT32 *ActualDestinationAddress;
+#endif
+
+#define KRamTargetSize  (8 * 1024 * 1024)		// 8 megabytes.
+
+EFI_STATUS
+GetChunk(void)
+{
+    EFI_STATUS Status;
+    EFI_PHYSICAL_ADDRESS PhysAddr = 0;
+
+    Status = uefi_call_wrapper(gBS->AllocatePages, 4, AllocateAnyPages, EfiLoaderData, EFI_SIZE_TO_PAGES(KRamTargetSize), &PhysAddr);
+    if (EFI_ERROR(Status)) {
+        Print(L"FAULT due to AllocatePages (%r)\n", Status);
+        return Status;
+    }
+
+#if _LP64
+    ActualDestinationAddress = (UINT64 *)(UINTN)PhysAddr;
+#else
+    ActualDestinationAddress = (UINT32 *)(UINTN)PhysAddr;
+#endif
+
+    return EFI_SUCCESS;
+}
+
 EFI_STATUS EFIAPI
 efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
 {
 	EFI_STATUS Status;
+	BOOLEAN IsInternalBoot = FALSE;
 
 	// These must be first. DO NOT PLACE ANY FUNCTION BEFORE THEM!
 	InitializeLib(ImageHandle, SystemTable);
@@ -56,6 +88,11 @@ efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
 
 	// Disable UEFI watchdog timer.
 	uefi_call_wrapper(BS->SetWatchdogTimer, 4, 0, 0, 0, NULL);
+
+	// Get the memory download area mapped into a chunk.
+	Status = GetChunk();
+	if (EFI_ERROR(Status))
+		HeliumBootPanic(Status, L"GetChunk() failed!\n");
 
 	// Initialize video output, so that we can use graphics.
 	Status = InitVideo();
@@ -70,6 +107,7 @@ efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
 		3, ImageHandle, &LoadedImageProtocol, (void**)&LoadedImage);
 	if (EFI_ERROR(Status))
 		HeliumBootPanic(Status, L"Could not get loaded image protocol!\n");
+
 #if _LP64
 	PrintToScreen(L"LoadedImage       : 0x%lX\n", LoadedImage);
 	PrintToScreen(L"FilePath          : 0x%lX (%s)\n", LoadedImage->FilePath, LoadedImage->FilePath);
@@ -89,8 +127,28 @@ efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
 
 	if (!NoMenuLoad)
 		StartMenu();
-	else
-		CommandMonitor();
+
+	IsInternalBoot = BootedFromInternalFlash();
+	if (IsInternalBoot) {
+		if (SearchDrivesRaw())
+			DoDownload();
+	}
+
+	switch (SerialBaud) {
+		case 115200:
+			PrintToScreen(L"Initiating YModem-G on port %u @ 115200 baud\n", SerialDownloadPort);
+			break;
+		case 230400:
+			PrintToScreen(L"Initiating YModem-G on port %u @ 230400 baud\n", SerialDownloadPort);
+			break;
+		default:
+			HeliumBootPanic(EFI_INVALID_PARAMETER, L"Invalid baud rate!\n");
+			break;
+	}
+
+	Status = InitSerialDownload(SerialDownloadPort);
+	if (EFI_ERROR(Status))
+		HeliumBootPanic(Status, L"Failed to initialize serial download!\n");
 
 	Status = DoDownload();
 	if (EFI_ERROR(Status))
