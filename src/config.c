@@ -41,6 +41,8 @@
 BOOLEAN UseUefiConsole = FALSE;
 BOOLEAN NoMenuLoad = FALSE;
 
+static BOOLEAN ConfigFirstRun = FALSE;
+
 static void
 ConfigCrypto(UINT8 *SourceBuffer, UINT8 *TargetBuffer, UINTN Size)
 {
@@ -230,10 +232,14 @@ ReadConfig(const UINT16 *Path, struct ConfigFile *OutCfg)
     /*
      * Read the settings from the decrypted buffer and set them accordingly.
      */
-    NoMenuLoad = DecryptedCfg.MenuFlag ? TRUE : FALSE;
-    UseUefiConsole = DecryptedCfg.UefiConsoleFlag ? TRUE : FALSE;
-    SerialDownloadPort = DecryptedCfg.SerialPort;
-    SerialBaud = DecryptedCfg.SerialBaudRate;
+    if (!ConfigFirstRun) {
+        NoMenuLoad = DecryptedCfg.MenuFlag ? TRUE : FALSE;
+        UseUefiConsole = DecryptedCfg.UefiConsoleFlag ? TRUE : FALSE;
+        SerialDownloadPort = DecryptedCfg.SerialPort;
+        SerialBaud = DecryptedCfg.SerialBaudRate;
+    }
+
+    ConfigFirstRun = TRUE;
 
 #if defined(DEBUG_BLD)
 	PrintToScreen(L"SerialBaud: %u\n", SerialBaud);
@@ -345,18 +351,18 @@ WriteConfig(UINT8 Field, UINT32 Value)
     // Encrypt the buffer again for final write.
     ConfigCrypto((UINT8 *)&DecryptedCfg, EncryptedBuffer, ReadSize);
 
-     /*
-      * Only write back the bytes we actually read.
-      */
-     UINTN WriteSize = ReadSize;
-     Status = uefi_call_wrapper(File->Write, 3, File, &WriteSize, EncryptedBuffer);
-     if (EFI_ERROR(Status)) {
-         PrintToScreen(L"Cannot write to file %s: %r\n", CONFIG_FILE, Status);
-         uefi_call_wrapper(File->Close, 1, File);
-         return Status;
-     }
+    /*
+     * Only write back the bytes we actually read.
+     */
+    UINTN WriteSize = ReadSize;
+    Status = uefi_call_wrapper(File->Write, 3, File, &WriteSize, EncryptedBuffer);
+    if (EFI_ERROR(Status)) {
+        PrintToScreen(L"Cannot write to file %s: %r\n", CONFIG_FILE, Status);
+        uefi_call_wrapper(File->Close, 1, File);
+        return Status;
+    }
 
-     uefi_call_wrapper(File->Close, 1, File);
+    uefi_call_wrapper(File->Close, 1, File);
 
-     return EFI_SUCCESS;
+    return EFI_SUCCESS;
 }

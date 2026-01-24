@@ -120,10 +120,16 @@ aarch64/dev_%.o: src/%.c
 x86_64/boot_debug.efi: x86_64/boot_debug.so
 	$(HIDE)$(ECHO) "  OBJCOPY  $(notdir $@)"
 	$(HIDE)$(X86_64_OBJCOPY) $(EFI_OBJCOPY_FLAGS) --target efi-app-x86_64 $< $@
+	$(HIDE)$(X86_64_OBJCOPY) --only-keep-debug $@ $@.debug
+	$(HIDE)$(X86_64_OBJCOPY) --strip-debug $@
+	$(HIDE)$(X86_64_OBJCOPY) --add-gnu-debuglink=$@.debug $@
 
 aarch64/boot_debug.efi: aarch64/boot_debug.so
 	$(HIDE)$(ECHO) "  OBJCOPY  $(notdir $@)"
 	$(HIDE)$(AARCH64_OBJCOPY) $(EFI_OBJCOPY_FLAGS) --target efi-app-aarch64 $< $@
+	$(HIDE)$(AARCH64_OBJCOPY) --only-keep-debug $@ $@.debug
+	$(HIDE)$(AARCH64_OBJCOPY) --strip-debug $@
+	$(HIDE)$(AARCH64_OBJCOPY) --add-gnu-debuglink=$@.debug $@
 
 x86_64/boot_dev.efi: x86_64/boot_dev.so
 	$(HIDE)$(ECHO) "  OBJCOPY  $(notdir $@)"

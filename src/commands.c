@@ -512,13 +512,13 @@ pconf(CHAR16 *args)
         return;
     }
 
-    PrintToScreen(L"Don't load the menu on startup:        0x%02x (%s)\n", Cfg.MenuFlag,
+    PrintToScreen(L"2: Configuration file version:            0x%02x\n", Cfg.Version);
+    PrintToScreen(L"3: Don't load the menu on startup:        0x%02x (%s)\n", Cfg.MenuFlag,
         Cfg.MenuFlag ? L"YES" : L"NO");
-    PrintToScreen(L"Configuration file version:            0x%02x\n", Cfg.Version);
-    PrintToScreen(L"Use UEFI Console:                      0x%02x (%s)\n", Cfg.UefiConsoleFlag,
+    PrintToScreen(L"4: Use UEFI Console:                      0x%02x (%s)\n", Cfg.UefiConsoleFlag,
         Cfg.UefiConsoleFlag ? L"YES" : L"NO");
-    PrintToScreen(L"Serial port for communication:         0x%02x (%u)\n", Cfg.SerialPort, Cfg.SerialPort);
-    PrintToScreen(L"Serial port baud rate:                 0x%08x (%u)\n", Cfg.SerialBaudRate, Cfg.SerialBaudRate);
+    PrintToScreen(L"5: Serial port for communication:         0x%02x (%u)\n", Cfg.SerialPort, Cfg.SerialPort);
+    PrintToScreen(L"6-9: Serial port baud rate:               0x%08x (%u)\n", Cfg.SerialBaudRate, Cfg.SerialBaudRate);
 
     return;
 }

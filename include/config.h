@@ -49,10 +49,10 @@ struct ConfigFile {
 
 static_assert(sizeof(struct ConfigFile) == 256);
 
-#define CONFIG_FILE_VERSION		2
-#define CONFIG_FILE	L"config.dat"
+#define CONFIG_FILE_VERSION		3
+#define CONFIG_FILE             L"config.dat"
+#define CONFIG_MAGIC            0xA345
 
-#define CONFIG_MAGIC 0xBEEF
 #define CFG_FIELD_MAGIC         0
 #define CFG_FIELD_VERSION       2
 #define CFG_FIELD_NOMENU        3
