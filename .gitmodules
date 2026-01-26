@@ -1,3 +1,4 @@
 [submodule "gnu-efi"]
 	path = gnu-efi
-	url = https://github.com/rhboot/gnu-efi.git
+	url = https://github.com/calmsacibis995/gnu-efi.git
+	branch = fix-include

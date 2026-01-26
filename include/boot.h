@@ -77,8 +77,6 @@ extern void AsmCpuid(UINT32 Leaf, UINT32 subleaf, UINT32 *Eax, UINT32 *Ebx, UINT
 #endif
 extern UINT64 GetTotalMemoryBytes(void);
 extern CHAR16 *StrStr(const CHAR16 *haystack, const CHAR16 *needle);
-extern INTN AsciiStrnCmp(const CHAR8 *s1, const CHAR8 *s2, UINTN n);
-extern UINTN AsciiStrLen(const CHAR8 *s);
 extern void HexDump(UINT8 *Address, UINTN Length);
 extern EFI_STATUS ReadInputData(UINT8 *Dest, UINTN *Length);
 extern EFI_STATUS ReadAndPrintChar(EFI_SERIAL_IO_PROTOCOL *Serial);

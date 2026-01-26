@@ -343,36 +343,6 @@ StrStr(const CHAR16 *haystack, const CHAR16 *needle)
 	return NULL;
 }
 
-INTN
-AsciiStrnCmp(const CHAR8 *s1, const CHAR8 *s2, UINTN n)
-{
-    while (n--) {
-        CHAR8 c1 = *s1++;
-        CHAR8 c2 = *s2++;
-
-        if (c1 != c2)
-            return (INTN)(UINT8)c1 - (INTN)(UINT8)c2;
-
-        if (c1 == '\0')
-            return 0;
-    }
-    return 0;
-}
-
-UINTN
-AsciiStrLen(const CHAR8 *s)
-{
-    UINTN len = 0;
-
-    if (!s)
-        return 0;
-
-    while (s[len] != '\0')
-        len++;
-
-    return len;
-}
-
 void
 HexDump(UINT8 *Address, UINTN Length)
 {
