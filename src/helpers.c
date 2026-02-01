@@ -40,6 +40,14 @@
 
 InputFunc InputFunction;
 
+#ifdef _LP64
+UINT64 *ActualDestinationAddress;
+#else
+UINT32 *ActualDestinationAddress;
+#endif
+
+#define KRamTargetSize  (8 * 1024 * 1024)		// 8 megabytes.
+
 void
 SplitCommandLine(CHAR16 *line, CHAR16 **command, CHAR16 **arguments)
 {
@@ -367,4 +375,25 @@ UINT8 *
 DestinationAddress(void)
 {
 	return (UINT8 *)ActualDestinationAddress;
+}
+
+EFI_STATUS
+GetChunk(void)
+{
+    EFI_STATUS Status;
+    EFI_PHYSICAL_ADDRESS PhysAddr = 0;
+
+    Status = uefi_call_wrapper(gBS->AllocatePages, 4, AllocateAnyPages, EfiLoaderData, EFI_SIZE_TO_PAGES(KRamTargetSize), &PhysAddr);
+    if (EFI_ERROR(Status)) {
+        Print(L"FAULT due to AllocatePages (%r)\n", Status);
+        return Status;
+    }
+
+#if _LP64
+    ActualDestinationAddress = (UINT64 *)(UINTN)PhysAddr;
+#else
+    ActualDestinationAddress = (UINT32 *)(UINTN)PhysAddr;
+#endif
+
+    return EFI_SUCCESS;
 }

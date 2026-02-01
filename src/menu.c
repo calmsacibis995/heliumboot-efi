@@ -49,7 +49,6 @@
 #include "cmd.h"
 #include "config.h"
 #include "menu.h"
-#include "serial.h"
 
 INTN mainmenu_items = 0;
 INTN mainmenu_idx = 0;
@@ -92,41 +91,10 @@ MenuExit(UINT32 Dummy1, UINT32 Dummy2)
 	gMenuExit = TRUE;
 }
 
-static void
-SetSerialPortBaud(UINT32 Port, UINT32 Baud)
-{
-	switch (Baud) {
-		case 115200:
-		case 230400:
-			break;
-		default:
-			PrintToScreen(L"Invalid baud rate %u!\n", Baud);
-			return;
-	}
-
-	// COM ports use a one-based index.
-	PrintToScreen(L"Setting COM%u to %u baud.\n", Port + 1, Baud);
-
-	SerialDownloadPort = Port;
-	SerialBaud = Baud;
-
-	WriteConfig(CFG_FIELD_SERIAL_BAUD, Baud);
-
-	gScreenUpdate = TRUE;
-}
-
 struct MenuItem MainMenu[] = {
 	{ L"Enter Command Monitor", ExitToCommandMonitor, 0, 0 },
 	{ L"Reboot system", MenuRebootSystem, 0, 0 },
 	{ L"Exit menu", MenuExit, 0, 0 },
-	{ L"Set COM1 to 115200 baud", SetSerialPortBaud, 0, 115200 },
-	{ L"Set COM1 to 230400 baud", SetSerialPortBaud, 0, 230400 },
-	{ L"Set COM2 to 115200 baud", SetSerialPortBaud, 1, 115200 },
-	{ L"Set COM2 to 230400 baud", SetSerialPortBaud, 1, 230400 },
-	{ L"Set COM3 to 115200 baud", SetSerialPortBaud, 2, 115200 },
-	{ L"Set COM3 to 230400 baud", SetSerialPortBaud, 2, 230400 },
-	{ L"Set COM4 to 115200 baud", SetSerialPortBaud, 3, 115200 },
-	{ L"Set COM4 to 230400 baud", SetSerialPortBaud, 3, 230400 },
 	{ L"The End", NULL, 0, 0 }
 };
 

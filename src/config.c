@@ -36,7 +36,6 @@
 
 #include "boot.h"
 #include "config.h"
-#include "serial.h"
 
 BOOLEAN UseUefiConsole = FALSE;
 BOOLEAN NoMenuLoad = FALSE;
@@ -120,8 +119,6 @@ WriteDefaultConfig(UINT8 *Buffer, UINT8 *OutBuffer, EFI_FILE_HANDLE RootFS, EFI_
     Dec.Version = CONFIG_FILE_VERSION;
     Dec.MenuFlag = FALSE;
     Dec.UefiConsoleFlag = FALSE;
-    Dec.SerialPort = 0;
-    Dec.SerialBaudRate = 115200;
 
     Status = CheckSumConfig(&Dec, TRUE);
     if (EFI_ERROR(Status)) {
@@ -225,8 +222,6 @@ ReadConfig(const UINT16 *Path, struct ConfigFile *OutCfg)
 #if defined(DEBUG_BLD)
 	PrintToScreen(L"No Menu Load flag:     0x%02x\n", DecryptedCfg.MenuFlag);
 	PrintToScreen(L"Config file version:   0x%02x\n", DecryptedCfg.Version);
-	PrintToScreen(L"Serial port:           0x%02x\n", DecryptedCfg.SerialPort);
-	PrintToScreen(L"Serial port baud:      %u\n", DecryptedCfg.SerialBaudRate);
 #endif
 
     /*
@@ -235,15 +230,9 @@ ReadConfig(const UINT16 *Path, struct ConfigFile *OutCfg)
     if (!ConfigFirstRun) {
         NoMenuLoad = DecryptedCfg.MenuFlag ? TRUE : FALSE;
         UseUefiConsole = DecryptedCfg.UefiConsoleFlag ? TRUE : FALSE;
-        SerialDownloadPort = DecryptedCfg.SerialPort;
-        SerialBaud = DecryptedCfg.SerialBaudRate;
     }
 
     ConfigFirstRun = TRUE;
-
-#if defined(DEBUG_BLD)
-	PrintToScreen(L"SerialBaud: %u\n", SerialBaud);
-#endif
 
     /*
      * Copy the decrypted to an output buffer if we did specify one.
@@ -320,16 +309,6 @@ WriteConfig(UINT8 Field, UINT32 Value)
             break;
         case CFG_FIELD_UEFI_CONSOLE:
             DecryptedCfg.UefiConsoleFlag = Value ? TRUE : FALSE;
-            break;
-        case CFG_FIELD_SERIAL_PORT:
-            if (Value > 3) {
-                PrintToScreen(L"Invalid serial port number. Valid numbers are 0-3.\n");
-                return EFI_INVALID_PARAMETER;
-            }
-            DecryptedCfg.SerialPort = (UINT8)Value;
-            break;
-        case CFG_FIELD_SERIAL_BAUD:
-            DecryptedCfg.SerialBaudRate = Value;
             break;
         case CFG_FIELD_CHKSUM:
         case CFG_FIELD_CHKSUM + 1:

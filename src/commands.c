@@ -517,8 +517,6 @@ pconf(CHAR16 *args)
         Cfg.MenuFlag ? L"YES" : L"NO");
     PrintToScreen(L"4: Use UEFI Console:                      0x%02x (%s)\n", Cfg.UefiConsoleFlag,
         Cfg.UefiConsoleFlag ? L"YES" : L"NO");
-    PrintToScreen(L"5: Serial port for communication:         0x%02x (%u)\n", Cfg.SerialPort, Cfg.SerialPort);
-    PrintToScreen(L"6-9: Serial port baud rate:               0x%08x (%u)\n", Cfg.SerialBaudRate, Cfg.SerialBaudRate);
 
     return;
 }
@@ -569,12 +567,9 @@ sconf(CHAR16 *args)
     value_num = StrDecimalToUintn(value_str);
 
     /* Accept only writable fields */
-    if (field_num != CFG_FIELD_NOMENU &&
-        field_num != CFG_FIELD_UEFI_CONSOLE &&
-        field_num != CFG_FIELD_SERIAL_PORT &&
-        field_num != CFG_FIELD_SERIAL_BAUD) {
-        PrintToScreen(L"Invalid field. Valid fields are: %d=NoMenu, %d=UefiConsole, %d=SerialPort, %d=SerialBaud\n",
-            CFG_FIELD_NOMENU, CFG_FIELD_UEFI_CONSOLE, CFG_FIELD_SERIAL_PORT, CFG_FIELD_SERIAL_BAUD);
+    if (field_num != CFG_FIELD_NOMENU && field_num != CFG_FIELD_UEFI_CONSOLE) {
+        PrintToScreen(L"Invalid field. Valid fields are: %d=NoMenu, %d=UefiConsole\n",
+            CFG_FIELD_NOMENU, CFG_FIELD_UEFI_CONSOLE);
         return;
     }
 
@@ -582,16 +577,6 @@ sconf(CHAR16 *args)
     if (field_num == CFG_FIELD_NOMENU || field_num == CFG_FIELD_UEFI_CONSOLE) {
         if (value_num != 0 && value_num != 1) {
             PrintToScreen(L"Invalid value. Must be 0 or 1 for this field.\n");
-            return;
-        }
-    } else if (field_num == CFG_FIELD_SERIAL_PORT) {
-        if (value_num > 3) {
-            PrintToScreen(L"Invalid value. Serial port must be 0-3.\n");
-            return;
-        }
-    } else if (field_num == CFG_FIELD_SERIAL_BAUD) {
-        if (value_num > 0xFFFFFFFF) {
-            PrintToScreen(L"Invalid value. Baud rate out of range.\n");
             return;
         }
     }

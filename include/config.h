@@ -41,9 +41,7 @@ struct ConfigFile {
     UINT8 Version;
     BOOLEAN MenuFlag;
     BOOLEAN UefiConsoleFlag;
-    UINT8 SerialPort;
-    UINT32 SerialBaudRate;
-    UINT8 Padding[244];
+    UINT8 Padding[249];
     UINT16 CheckSum;
 } __attribute__((packed));
 
@@ -57,8 +55,6 @@ static_assert(sizeof(struct ConfigFile) == 256);
 #define CFG_FIELD_VERSION       2
 #define CFG_FIELD_NOMENU        3
 #define CFG_FIELD_UEFI_CONSOLE  4
-#define CFG_FIELD_SERIAL_PORT   5
-#define CFG_FIELD_SERIAL_BAUD   6
 #define CFG_FIELD_CHKSUM        254
 
 extern BOOLEAN NoMenuLoad;

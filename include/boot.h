@@ -60,6 +60,11 @@ extern BOOLEAN IsElf64(UINT8 *Header);
 extern EFI_STATUS LoadElfBinary(EFI_HANDLE ImageHandle, EFI_FILE_HANDLE File);
 
 // helpers.c
+#if _LP64
+extern UINT64 *ActualDestinationAddress;
+#else
+extern UINT32 *ActualDestinationAddress;
+#endif
 extern InputFunc InputFunction;
 extern UINTN StrDecimalToUintn(CHAR16 *str);
 extern void SplitCommandLine(CHAR16 *line, CHAR16 **command, CHAR16 **arguments);
@@ -81,16 +86,12 @@ extern void HexDump(UINT8 *Address, UINTN Length);
 extern EFI_STATUS ReadInputData(UINT8 *Dest, UINTN *Length);
 extern EFI_STATUS ReadAndPrintChar(EFI_SERIAL_IO_PROTOCOL *Serial);
 extern UINT8 *DestinationAddress(void);
+extern EFI_STATUS GetChunk(void);
 
 // loadfile.c
 extern EFI_STATUS LoadFile(CHAR16 *args);
 
 // main.c
-#if _LP64
-extern UINT64 *ActualDestinationAddress;
-#else
-extern UINT32 *ActualDestinationAddress;
-#endif
 extern BOOLEAN exit_flag;
 extern EFI_HANDLE gImageHandle;
 
